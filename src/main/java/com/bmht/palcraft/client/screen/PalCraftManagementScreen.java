@@ -161,14 +161,15 @@ public class PalCraftManagementScreen extends Screen {
             return;
         }
 
-        if (selectedBasePalSlot < 0 && !base.storedPals().isEmpty()) {
-            selectedBasePalSlot = base.storedPals().get(0).slot();
+        List<PalCraftClientState.BasePalSummary> visiblePals = visibleBasePals(base);
+        if ((selectedBasePalSlot < 0 || visiblePals.stream().noneMatch(pal -> pal.slot() == selectedBasePalSlot)) && !visiblePals.isEmpty()) {
+            selectedBasePalSlot = visiblePals.get(0).slot();
         }
 
         if (selectedTab == BaseTab.WORK || selectedTab == BaseTab.PETS) {
             int listX = panelX + 14;
             int listY = panelY + 60;
-            List<PalCraftClientState.BasePalSummary> pals = base.storedPals();
+            List<PalCraftClientState.BasePalSummary> pals = visiblePals;
             for (int i = 0; i < Math.min(6, pals.size()); i++) {
                 PalCraftClientState.BasePalSummary pal = pals.get(i);
                 Text label = Text.literal((pal.slot() + 1) + ". " + displayName(pal) + (pal.deployed() ? " *" : ""));
@@ -283,13 +284,10 @@ public class PalCraftManagementScreen extends Screen {
         context.drawTextWithShadow(textRenderer, Text.translatable("screen.palcraft.work_assignment").formatted(Formatting.YELLOW), panelX + 164, panelY + 49, 0xFFFFFF);
         PalCraftClientState.BasePalSummary pal = selectedBasePal(base);
         if (pal == null) {
-            context.drawTextWithShadow(textRenderer, Text.translatable("screen.palcraft.no_base_pals"), panelX + 164, panelY + 72, COLOR_MUTED);
+            context.drawTextWithShadow(textRenderer, Text.translatable("screen.palcraft.no_deployed_pals"), panelX + 164, panelY + 72, COLOR_MUTED);
             return;
         }
         renderBasePalDetails(context, pal, panelX + 164, panelY + 104);
-        if (!pal.deployed()) {
-            context.drawTextWithShadow(textRenderer, Text.translatable("screen.palcraft.deploy_first"), panelX + 164, panelY + 88, COLOR_MUTED);
-        }
     }
 
     private void renderBasePets(DrawContext context, PalCraftClientState.BaseSummary base, int panelX, int panelY) {
@@ -352,12 +350,21 @@ public class PalCraftManagementScreen extends Screen {
     }
 
     private PalCraftClientState.BasePalSummary selectedBasePal(PalCraftClientState.BaseSummary base) {
-        for (PalCraftClientState.BasePalSummary pal : base.storedPals()) {
+        for (PalCraftClientState.BasePalSummary pal : visibleBasePals(base)) {
             if (pal.slot() == selectedBasePalSlot) {
                 return pal;
             }
         }
         return null;
+    }
+
+    private List<PalCraftClientState.BasePalSummary> visibleBasePals(PalCraftClientState.BaseSummary base) {
+        if (selectedTab != BaseTab.WORK) {
+            return base.storedPals();
+        }
+        return base.storedPals().stream()
+                .filter(PalCraftClientState.BasePalSummary::deployed)
+                .toList();
     }
 
     private static String oneDecimal(float value) {

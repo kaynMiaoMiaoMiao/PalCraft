@@ -79,6 +79,7 @@
   "screen.palcraft.name_placeholder": "Pal name",
   "screen.palcraft.no_bases": "No bases yet. Place a base core to see it here.",
   "screen.palcraft.no_base_pals": "No pals in base storage.",
+  "screen.palcraft.no_deployed_pals": "No pals are deployed to this base.",
   "screen.palcraft.no_pals": "No pals yet.",
   "screen.palcraft.none": "None",
   "screen.palcraft.pals": "Pals",
