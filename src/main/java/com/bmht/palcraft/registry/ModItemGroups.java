@@ -19,6 +19,7 @@ public final class ModItemGroups {
                     .entries((context, entries) -> {
                         entries.add(ModItems.CAPTURE_ORB);
                         entries.add(ModItems.SPARKIT_SPAWN_EGG);
+                        entries.add(ModItems.BASE_CORE);
                     })
                     .build()
     );

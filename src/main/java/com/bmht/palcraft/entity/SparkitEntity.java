@@ -1,10 +1,12 @@
 package com.bmht.palcraft.entity;
 
 import net.minecraft.block.BlockState;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.SpawnReason;
 import net.minecraft.entity.ai.goal.Goal;
+import net.minecraft.entity.attribute.EntityAttributeInstance;
 import net.minecraft.entity.ai.goal.LookAroundGoal;
 import net.minecraft.entity.ai.goal.LookAtEntityGoal;
 import net.minecraft.entity.ai.goal.MeleeAttackGoal;
@@ -13,11 +15,14 @@ import net.minecraft.entity.ai.goal.SwimGoal;
 import net.minecraft.entity.ai.goal.WanderAroundFarGoal;
 import net.minecraft.entity.attribute.DefaultAttributeContainer;
 import net.minecraft.entity.attribute.EntityAttributes;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.mob.PathAwareEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.particle.ParticleTypes;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -30,6 +35,8 @@ import net.minecraft.util.math.random.Random;
 import net.minecraft.world.ServerWorldAccess;
 import net.minecraft.world.World;
 
+import com.bmht.palcraft.partner.PalInstance;
+import com.bmht.palcraft.partner.PalSkill;
 import com.bmht.palcraft.partner.PlayerPalData;
 
 import java.util.EnumSet;
@@ -49,6 +56,13 @@ public class SparkitEntity extends PathAwareEntity {
     private UUID lastAssistTargetUuid;
     private UUID lastProtectTargetUuid;
     private boolean lowHealthWarningSent;
+    private int palLevel = 1;
+    private float palAttack = 3.0F;
+    private float palDefense;
+    private EnumSet<PalSkill> skills = EnumSet.noneOf(PalSkill.class);
+    private int tackleCooldownTicks;
+    private int energyBoltCooldownTicks;
+    private int selfRepairCooldownTicks;
 
     public SparkitEntity(EntityType<? extends SparkitEntity> entityType, World world) {
         super(entityType, world);
@@ -81,9 +95,35 @@ public class SparkitEntity extends PathAwareEntity {
     @Override
     public void tick() {
         super.tick();
-        if (!this.getWorld().isClient && this.isSummonedPal() && this.age % 10 == 0) {
-            updateSummonedCombatTarget();
+        if (!this.getWorld().isClient && this.isSummonedPal()) {
+            tickSkillCooldowns();
+            if (this.age % 10 == 0) {
+                updateSummonedCombatTarget();
+            }
+            tickSummonedSkills();
         }
+    }
+
+    @Override
+    public boolean damage(DamageSource source, float amount) {
+        float adjustedAmount = amount;
+        if (isSummonedPal() && palDefense > 0.0F && amount > 1.0F) {
+            adjustedAmount = Math.max(1.0F, amount - palDefense * 0.35F);
+        }
+        return super.damage(source, adjustedAmount);
+    }
+
+    @Override
+    public boolean tryAttack(Entity target) {
+        boolean attacked = super.tryAttack(target);
+        if (attacked && target instanceof LivingEntity livingTarget && hasSkill(PalSkill.TACKLE) && tackleCooldownTicks <= 0) {
+            float damage = 1.5F + palLevel * 0.35F;
+            livingTarget.damage(this.getDamageSources().mobAttack(this), damage);
+            tackleCooldownTicks = PalSkill.TACKLE.cooldownTicks();
+            spawnBurstParticles(ParticleTypes.CRIT, livingTarget, 8);
+            sendSkillMessage("message.palcraft.skill.tackle", livingTarget);
+        }
+        return attacked;
     }
 
     @Override
@@ -118,14 +158,47 @@ public class SparkitEntity extends PathAwareEntity {
         }
     }
 
-    public void setSummonedPalData(UUID ownerUuid, UUID instanceUuid) {
+    public void setSummonedPalData(UUID ownerUuid, PalInstance palInstance) {
         this.ownerUuid = ownerUuid;
-        this.instanceUuid = instanceUuid;
+        this.instanceUuid = palInstance.instanceUuid();
+        applyPalInstanceStats(palInstance, false);
         this.setPersistent();
     }
 
     public boolean isSummonedPal() {
         return ownerUuid != null;
+    }
+
+    public UUID getOwnerUuid() {
+        return ownerUuid;
+    }
+
+    public UUID getInstanceUuid() {
+        return instanceUuid;
+    }
+
+    public void applyPalInstanceStats(PalInstance palInstance, boolean restoreLevelUpHealth) {
+        palLevel = palInstance.level();
+        palAttack = palInstance.attack();
+        palDefense = palInstance.defense();
+        skills = palInstance.skills().isEmpty()
+                ? EnumSet.noneOf(PalSkill.class)
+                : EnumSet.copyOf(palInstance.skills());
+
+        EntityAttributeInstance maxHealthAttribute = getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH);
+        if (maxHealthAttribute != null) {
+            maxHealthAttribute.setBaseValue(palInstance.maxHealth());
+        }
+        EntityAttributeInstance attackAttribute = getAttributeInstance(EntityAttributes.GENERIC_ATTACK_DAMAGE);
+        if (attackAttribute != null) {
+            attackAttribute.setBaseValue(palAttack);
+        }
+
+        if (restoreLevelUpHealth) {
+            setHealth(Math.min(getMaxHealth(), getHealth() + 4.0F));
+        } else {
+            setHealth(Math.min(getHealth(), getMaxHealth()));
+        }
     }
 
     private ServerPlayerEntity getOwner() {
@@ -185,6 +258,111 @@ public class SparkitEntity extends PathAwareEntity {
 
     private boolean isLowHealth() {
         return this.getHealth() <= this.getMaxHealth() * LOW_HEALTH_RATIO;
+    }
+
+    private void tickSkillCooldowns() {
+        if (tackleCooldownTicks > 0) {
+            tackleCooldownTicks--;
+        }
+        if (energyBoltCooldownTicks > 0) {
+            energyBoltCooldownTicks--;
+        }
+        if (selfRepairCooldownTicks > 0) {
+            selfRepairCooldownTicks--;
+        }
+    }
+
+    private void tickSummonedSkills() {
+        tryUseSelfRepair();
+        tryUseEnergyBolt();
+    }
+
+    private boolean hasSkill(PalSkill skill) {
+        return skills.contains(skill);
+    }
+
+    private void tryUseEnergyBolt() {
+        LivingEntity target = getTarget();
+        if (!hasSkill(PalSkill.ENERGY_BOLT)
+                || energyBoltCooldownTicks > 0
+                || target == null
+                || !target.isAlive()
+                || target.getWorld() != this.getWorld()) {
+            return;
+        }
+
+        double distanceSquared = squaredDistanceTo(target);
+        if (distanceSquared < 9.0D || distanceSquared > 196.0D) {
+            return;
+        }
+
+        float damage = 2.5F + palLevel * 0.45F + palAttack * 0.25F;
+        target.damage(this.getDamageSources().mobAttack(this), damage);
+        energyBoltCooldownTicks = PalSkill.ENERGY_BOLT.cooldownTicks();
+        spawnLineParticles(target);
+        sendSkillMessage("message.palcraft.skill.energy_bolt", target);
+    }
+
+    private void tryUseSelfRepair() {
+        if (!hasSkill(PalSkill.SELF_REPAIR)
+                || selfRepairCooldownTicks > 0
+                || this.getHealth() > this.getMaxHealth() * 0.5F) {
+            return;
+        }
+
+        float healAmount = 3.0F + palLevel * 0.6F;
+        heal(healAmount);
+        addStatusEffect(new StatusEffectInstance(StatusEffects.RESISTANCE, 100, 0, false, true, true));
+        selfRepairCooldownTicks = PalSkill.SELF_REPAIR.cooldownTicks();
+        if (this.getWorld() instanceof ServerWorld serverWorld) {
+            serverWorld.spawnParticles(ParticleTypes.HEART, getX(), getBodyY(0.75D), getZ(), 5, 0.35D, 0.35D, 0.35D, 0.02D);
+        }
+        sendSkillMessage("message.palcraft.skill.self_repair", null);
+    }
+
+    private void spawnLineParticles(LivingEntity target) {
+        if (!(this.getWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+
+        double startX = getX();
+        double startY = getBodyY(0.65D);
+        double startZ = getZ();
+        double endX = target.getX();
+        double endY = target.getBodyY(0.65D);
+        double endZ = target.getZ();
+        for (int i = 1; i <= 8; i++) {
+            double progress = i / 8.0D;
+            serverWorld.spawnParticles(
+                    ParticleTypes.ELECTRIC_SPARK,
+                    startX + (endX - startX) * progress,
+                    startY + (endY - startY) * progress,
+                    startZ + (endZ - startZ) * progress,
+                    2,
+                    0.05D,
+                    0.05D,
+                    0.05D,
+                    0.01D
+            );
+        }
+    }
+
+    private void spawnBurstParticles(net.minecraft.particle.ParticleEffect particleEffect, LivingEntity target, int count) {
+        if (this.getWorld() instanceof ServerWorld serverWorld) {
+            serverWorld.spawnParticles(particleEffect, target.getX(), target.getBodyY(0.5D), target.getZ(), count, 0.25D, 0.25D, 0.25D, 0.05D);
+        }
+    }
+
+    private void sendSkillMessage(String translationKey, LivingEntity target) {
+        ServerPlayerEntity owner = getOwner();
+        if (owner == null) {
+            return;
+        }
+        if (target == null) {
+            owner.sendMessage(Text.translatable(translationKey, this.getDisplayName()), false);
+        } else {
+            owner.sendMessage(Text.translatable(translationKey, this.getDisplayName(), target.getDisplayName()), false);
+        }
     }
 
     private void sendAssistAttackMessage(ServerPlayerEntity owner, LivingEntity target) {

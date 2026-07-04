@@ -85,13 +85,13 @@ public class PlayerPalData extends PersistentState {
         if (!palInstance.customName().isBlank()) {
             livingEntity.setCustomName(Text.literal(palInstance.customName()));
         }
-        livingEntity.setHealth(MathHelper.clamp(palInstance.health(), 1.0F, livingEntity.getMaxHealth()));
         if (livingEntity instanceof MobEntity mobEntity) {
             mobEntity.setPersistent();
         }
         if (livingEntity instanceof SparkitEntity sparkitEntity) {
-            sparkitEntity.setSummonedPalData(player.getUuid(), palInstance.instanceUuid());
+            sparkitEntity.setSummonedPalData(player.getUuid(), palInstance);
         }
+        livingEntity.setHealth(MathHelper.clamp(palInstance.health(), 1.0F, livingEntity.getMaxHealth()));
 
         if (!player.getWorld().spawnEntity(livingEntity)) {
             return Optional.of("message.palcraft.command.summon_failed");
@@ -136,6 +136,55 @@ public class PlayerPalData extends PersistentState {
         record.activeSlot = -1;
         record.activeEntityUuid = null;
         markDirty();
+    }
+
+    public void grantExperienceForKill(ServerWorld world, SparkitEntity palEntity, LivingEntity killedEntity) {
+        UUID ownerUuid = palEntity.getOwnerUuid();
+        UUID instanceUuid = palEntity.getInstanceUuid();
+        PlayerRecord record = records.get(ownerUuid);
+        if (record == null
+                || record.activeEntityUuid == null
+                || !record.activeEntityUuid.equals(palEntity.getUuid())
+                || record.activeSlot < 0
+                || record.activeSlot >= record.storedPals.size()) {
+            return;
+        }
+
+        PalInstance current = record.storedPals.get(record.activeSlot);
+        if (!current.instanceUuid().equals(instanceUuid)) {
+            return;
+        }
+
+        long gainedExperience = calculateExperienceReward(killedEntity);
+        long experience = current.experience() + gainedExperience;
+        int level = current.level();
+        boolean leveledUp = false;
+        while (experience >= PalInstance.experienceToNextLevel(level)) {
+            experience -= PalInstance.experienceToNextLevel(level);
+            level++;
+            leveledUp = true;
+        }
+
+        float maxHealth = PalInstance.maxHealthForLevel(level);
+        float attack = PalInstance.attackForLevel(level);
+        float defense = PalInstance.defenseForLevel(level);
+        float health = MathHelper.clamp(palEntity.getHealth(), 0.0F, maxHealth);
+        if (leveledUp) {
+            health = Math.min(maxHealth, health + Math.max(2.0F, maxHealth - current.maxHealth()));
+        }
+
+        PalInstance updated = current.withProgression(level, experience, maxHealth, attack, defense, health);
+        record.storedPals.set(record.activeSlot, updated);
+        palEntity.applyPalInstanceStats(updated, leveledUp);
+        markDirty();
+
+        ServerPlayerEntity owner = world.getServer().getPlayerManager().getPlayer(ownerUuid);
+        if (owner != null) {
+            owner.sendMessage(Text.translatable("message.palcraft.progress.exp_gained", palEntity.getDisplayName(), gainedExperience), false);
+            if (leveledUp) {
+                owner.sendMessage(Text.translatable("message.palcraft.progress.level_up", palEntity.getDisplayName(), level), false);
+            }
+        }
     }
 
     @Override
@@ -192,6 +241,10 @@ public class PlayerPalData extends PersistentState {
             }
         }
         return Optional.empty();
+    }
+
+    private static long calculateExperienceReward(LivingEntity killedEntity) {
+        return Math.max(5L, Math.round(10.0F + killedEntity.getMaxHealth() * 2.0F));
     }
 
     private static final class PlayerRecord {

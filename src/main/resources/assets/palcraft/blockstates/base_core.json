@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "palcraft:block/base_core"
+    }
+  }
+}

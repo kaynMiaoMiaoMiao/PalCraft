@@ -1,6 +1,10 @@
 package com.bmht.palcraft;
 
+import com.bmht.palcraft.base.BaseWorkEvents;
 import com.bmht.palcraft.command.PalCraftCommands;
+import com.bmht.palcraft.network.PalCraftNetworking;
+import com.bmht.palcraft.partner.PalProgressionEvents;
+import com.bmht.palcraft.registry.ModBlocks;
 import com.bmht.palcraft.registry.ModItemGroups;
 import com.bmht.palcraft.registry.ModItems;
 import com.bmht.palcraft.registry.ModEntities;
@@ -14,10 +18,14 @@ public class PalCraft implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        ModBlocks.registerModBlocks();
         ModItems.registerModItems();
         ModEntities.registerModEntities();
         ModItemGroups.registerModItemGroups();
         PalCraftCommands.register();
+        PalProgressionEvents.register();
+        BaseWorkEvents.register();
+        PalCraftNetworking.registerServerReceivers();
         LOGGER.info("Initializing PalCraft");
     }
 }
