@@ -77,6 +77,24 @@ public record PalInstance(
         );
     }
 
+    public PalInstance withCustomName(String customName) {
+        return new PalInstance(
+                instanceUuid,
+                speciesId,
+                ownerUuid,
+                customName,
+                level,
+                experience,
+                health,
+                maxHealth,
+                attack,
+                defense,
+                elementType,
+                skills,
+                capturedGameTime
+        );
+    }
+
     public PalInstance withProgression(int level, long experience, float maxHealth, float attack, float defense, float health) {
         return new PalInstance(
                 instanceUuid,

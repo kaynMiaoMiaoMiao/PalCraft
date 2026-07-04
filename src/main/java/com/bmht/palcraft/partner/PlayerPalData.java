@@ -123,6 +123,28 @@ public class PlayerPalData extends PersistentState {
         return true;
     }
 
+    public boolean renamePal(ServerPlayerEntity player, int slot, String name) {
+        PlayerRecord record = getRecord(player.getUuid());
+        if (slot < 0 || slot >= record.storedPals.size()) {
+            return false;
+        }
+
+        String sanitizedName = sanitizeName(name);
+        PalInstance current = record.storedPals.get(slot);
+        record.storedPals.set(slot, current.withCustomName(sanitizedName));
+        if (record.activeSlot == slot && record.activeEntityUuid != null) {
+            findEntity(player.getServer(), record.activeEntityUuid).ifPresent(entity -> {
+                if (sanitizedName.isBlank()) {
+                    entity.setCustomName(null);
+                } else {
+                    entity.setCustomName(Text.literal(sanitizedName));
+                }
+            });
+        }
+        markDirty();
+        return true;
+    }
+
     public void markActivePalDead(UUID ownerUuid, UUID entityUuid) {
         PlayerRecord record = records.get(ownerUuid);
         if (record == null || record.activeEntityUuid == null || !record.activeEntityUuid.equals(entityUuid)) {
@@ -245,6 +267,11 @@ public class PlayerPalData extends PersistentState {
 
     private static long calculateExperienceReward(LivingEntity killedEntity) {
         return Math.max(5L, Math.round(10.0F + killedEntity.getMaxHealth() * 2.0F));
+    }
+
+    private static String sanitizeName(String name) {
+        String trimmed = name == null ? "" : name.trim();
+        return trimmed.length() > 32 ? trimmed.substring(0, 32) : trimmed;
     }
 
     private static final class PlayerRecord {

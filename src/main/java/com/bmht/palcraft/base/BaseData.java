@@ -3,15 +3,25 @@ package com.bmht.palcraft.base;
 import com.bmht.palcraft.PalCraft;
 import com.bmht.palcraft.partner.PalInstance;
 import com.bmht.palcraft.partner.PlayerPalData;
+import com.bmht.palcraft.registry.ModBlocks;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.CropBlock;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
+import net.minecraft.registry.Registries;
+import net.minecraft.registry.RegistryKey;
+import net.minecraft.registry.RegistryKeys;
+import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.PersistentState;
+import net.minecraft.world.World;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -28,6 +38,9 @@ public class BaseData extends PersistentState {
     private static final int TASK_SCAN_INTERVAL_TICKS = 600;
     private static final int MAX_TASK_QUEUE_SIZE = 8;
     private static final int MAX_TASKS_PER_SCAN = 3;
+    private static final int SCAN_Y_MIN = -4;
+    private static final int SCAN_Y_MAX = 8;
+    private static final int SCAN_STEPS_PER_WORK = 768;
 
     private final List<BaseRecord> bases = new ArrayList<>();
 
@@ -106,8 +119,13 @@ public class BaseData extends PersistentState {
                 continue;
             }
 
+            ServerWorld world = server.getWorld(RegistryKey.of(RegistryKeys.WORLD, base.dimensionId));
+            if (world == null) {
+                continue;
+            }
+
             if (server.getTicks() >= base.nextTaskScanTick && base.taskQueue.size() < MAX_TASK_QUEUE_SIZE) {
-                changed |= enqueueDiscoveredTasks(base, server.getTicks());
+                changed |= enqueueDiscoveredTasks(base, world, server.getTicks());
             }
 
             List<PalInstance> ownerPals = palData.getStoredPals(base.ownerUuid);
@@ -125,7 +143,9 @@ public class BaseData extends PersistentState {
                 baseTask.progress += Math.max(1, assignment.workType.suitability(pal.get()));
                 if (baseTask.progress >= baseTask.requiredWork) {
                     base.taskQueue.remove(baseTask);
-                    base.addStock(baseTask.workType, 1L);
+                    if (completeTask(world, baseTask)) {
+                        base.addStock(baseTask.workType, 1L);
+                    }
                 }
                 changed = true;
             }
@@ -135,17 +155,93 @@ public class BaseData extends PersistentState {
         }
     }
 
-    private boolean enqueueDiscoveredTasks(BaseRecord base, int serverTicks) {
+    private boolean enqueueDiscoveredTasks(BaseRecord base, ServerWorld world, int serverTicks) {
         int queued = 0;
         for (BaseWorkType workType : base.preferredWorkTypes()) {
             if (queued >= MAX_TASKS_PER_SCAN || base.taskQueue.size() >= MAX_TASK_QUEUE_SIZE) {
                 break;
             }
-            base.taskQueue.add(new BaseTask(UUID.randomUUID(), workType, 0, workType.requiredWork()));
+            Optional<BlockPos> targetPos = findTargetForWork(base, world, workType);
+            if (targetPos.isEmpty()) {
+                continue;
+            }
+            base.taskQueue.add(new BaseTask(UUID.randomUUID(), workType, 0, workType.requiredWork(), targetPos.get()));
             queued++;
         }
         base.nextTaskScanTick = serverTicks + TASK_SCAN_INTERVAL_TICKS;
         return queued > 0;
+    }
+
+    private Optional<BlockPos> findTargetForWork(BaseRecord base, ServerWorld world, BaseWorkType workType) {
+        if (workType == BaseWorkType.HAULING || workType == BaseWorkType.MANUFACTURING) {
+            return Optional.of(base.corePos);
+        }
+
+        int diameter = base.radius * 2 + 1;
+        int scanHeight = SCAN_Y_MAX - SCAN_Y_MIN + 1;
+        int totalPositions = diameter * diameter * scanHeight;
+        int steps = Math.min(SCAN_STEPS_PER_WORK, totalPositions);
+        for (int step = 0; step < steps; step++) {
+            int index = Math.floorMod(base.scanCursor++, totalPositions);
+            int yIndex = index % scanHeight;
+            int horizontalIndex = index / scanHeight;
+            int dx = horizontalIndex % diameter - base.radius;
+            int dz = horizontalIndex / diameter - base.radius;
+            BlockPos pos = base.corePos.add(dx, SCAN_Y_MIN + yIndex, dz);
+            if (base.hasQueuedTarget(workType, pos)) {
+                continue;
+            }
+
+            BlockState state = world.getBlockState(pos);
+            if (isValidWorkTarget(state, workType)) {
+                return Optional.of(pos.toImmutable());
+            }
+        }
+        return Optional.empty();
+    }
+
+    private boolean completeTask(ServerWorld world, BaseTask task) {
+        if (task.workType == BaseWorkType.HAULING || task.workType == BaseWorkType.MANUFACTURING) {
+            return true;
+        }
+
+        BlockState state = world.getBlockState(task.targetPos);
+        if (!isValidWorkTarget(state, task.workType)) {
+            return false;
+        }
+
+        if (task.workType == BaseWorkType.PLANTING && state.getBlock() instanceof CropBlock cropBlock) {
+            world.breakBlock(task.targetPos, false);
+            world.setBlockState(task.targetPos, cropBlock.withAge(0), Block.NOTIFY_ALL);
+            return true;
+        }
+
+        world.breakBlock(task.targetPos, false);
+        return true;
+    }
+
+    private boolean isValidWorkTarget(BlockState state, BaseWorkType workType) {
+        return switch (workType) {
+            case MINING -> isMineableResource(state);
+            case LOGGING -> state.isIn(BlockTags.LOGS);
+            case PLANTING -> state.getBlock() instanceof CropBlock cropBlock && cropBlock.isMature(state);
+            case HAULING, MANUFACTURING -> true;
+        };
+    }
+
+    private boolean isMineableResource(BlockState state) {
+        if (state.isOf(ModBlocks.BASE_CORE) || !state.isIn(BlockTags.PICKAXE_MINEABLE)) {
+            return false;
+        }
+
+        String blockPath = Registries.BLOCK.getId(state.getBlock()).getPath();
+        return blockPath.endsWith("_ore")
+                || state.isOf(Blocks.STONE)
+                || state.isOf(Blocks.DEEPSLATE)
+                || state.isOf(Blocks.COBBLESTONE)
+                || state.isOf(Blocks.COBBLED_DEEPSLATE)
+                || state.isOf(Blocks.BLACKSTONE)
+                || state.isOf(Blocks.SANDSTONE);
     }
 
     @Override
@@ -161,6 +257,7 @@ public class BaseData extends PersistentState {
             baseNbt.putInt("Z", base.corePos.getZ());
             baseNbt.putInt("Radius", base.radius);
             baseNbt.putLong("NextTaskScanTick", base.nextTaskScanTick);
+            baseNbt.putInt("ScanCursor", base.scanCursor);
 
             NbtList assignedPals = new NbtList();
             for (AssignedPal assignment : base.assignments) {
@@ -187,6 +284,9 @@ public class BaseData extends PersistentState {
                 taskNbt.putString("WorkType", task.workType.id());
                 taskNbt.putInt("Progress", task.progress);
                 taskNbt.putInt("RequiredWork", task.requiredWork);
+                taskNbt.putInt("TargetX", task.targetPos.getX());
+                taskNbt.putInt("TargetY", task.targetPos.getY());
+                taskNbt.putInt("TargetZ", task.targetPos.getZ());
                 taskList.add(taskNbt);
             }
             baseNbt.put("Tasks", taskList);
@@ -214,6 +314,7 @@ public class BaseData extends PersistentState {
                     baseNbt.getInt("Radius")
             );
             record.nextTaskScanTick = baseNbt.getInt("NextTaskScanTick");
+            record.scanCursor = baseNbt.getInt("ScanCursor");
 
             NbtList assignedPals = baseNbt.getList("AssignedPals", NbtElement.COMPOUND_TYPE);
             for (NbtElement palElement : assignedPals) {
@@ -241,7 +342,10 @@ public class BaseData extends PersistentState {
                         taskNbt.getUuid("TaskUuid"),
                         BaseWorkType.fromId(taskNbt.getString("WorkType")),
                         taskNbt.getInt("Progress"),
-                        taskNbt.getInt("RequiredWork")
+                        taskNbt.getInt("RequiredWork"),
+                        taskNbt.contains("TargetX")
+                                ? new BlockPos(taskNbt.getInt("TargetX"), taskNbt.getInt("TargetY"), taskNbt.getInt("TargetZ"))
+                                : record.corePos
                 ));
             }
             data.bases.add(record);
@@ -316,6 +420,7 @@ public class BaseData extends PersistentState {
         private final List<BaseTask> taskQueue = new ArrayList<>();
         private final EnumMap<BaseWorkType, Long> stock = new EnumMap<>(BaseWorkType.class);
         private int nextTaskScanTick;
+        private int scanCursor;
 
         private BaseRecord(UUID baseUuid, UUID ownerUuid, Identifier dimensionId, BlockPos corePos, int radius) {
             this.baseUuid = baseUuid;
@@ -348,6 +453,10 @@ public class BaseData extends PersistentState {
                     .filter(task -> task.workType == workType)
                     .findFirst();
             return matchingTask.or(() -> taskQueue.stream().findFirst());
+        }
+
+        private boolean hasQueuedTarget(BaseWorkType workType, BlockPos pos) {
+            return taskQueue.stream().anyMatch(task -> task.workType == workType && task.targetPos.equals(pos));
         }
 
         private List<BaseWorkType> preferredWorkTypes() {
@@ -407,12 +516,14 @@ public class BaseData extends PersistentState {
         private final BaseWorkType workType;
         private int progress;
         private final int requiredWork;
+        private final BlockPos targetPos;
 
-        private BaseTask(UUID taskUuid, BaseWorkType workType, int progress, int requiredWork) {
+        private BaseTask(UUID taskUuid, BaseWorkType workType, int progress, int requiredWork, BlockPos targetPos) {
             this.taskUuid = taskUuid;
             this.workType = workType;
             this.progress = progress;
             this.requiredWork = requiredWork;
+            this.targetPos = targetPos;
         }
     }
 

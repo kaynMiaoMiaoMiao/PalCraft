@@ -20,10 +20,12 @@ public final class PalCraftNetworking {
     public static final Identifier UI_REQUEST = new Identifier(PalCraft.MOD_ID, "ui_request");
     public static final Identifier UI_STATE = new Identifier(PalCraft.MOD_ID, "ui_state");
     public static final Identifier UI_ACTION = new Identifier(PalCraft.MOD_ID, "ui_action");
+    public static final Identifier UI_OPEN = new Identifier(PalCraft.MOD_ID, "ui_open");
 
     private static final int ACTION_SUMMON = 1;
     private static final int ACTION_RECALL = 2;
     private static final int ACTION_ASSIGN_AUTO = 3;
+    private static final int ACTION_RENAME = 4;
 
     private PalCraftNetworking() {
     }
@@ -35,11 +37,17 @@ public final class PalCraftNetworking {
         ServerPlayNetworking.registerGlobalReceiver(UI_ACTION, (server, player, handler, buf, responseSender) -> {
             int action = buf.readVarInt();
             int slot = buf.readVarInt();
+            String value = action == ACTION_RENAME ? buf.readString(32) : "";
             server.execute(() -> {
-                handleUiAction(player, action, slot);
+                handleUiAction(player, action, slot, value);
                 sendUiState(player);
             });
         });
+    }
+
+    public static void openManagementUi(ServerPlayerEntity player) {
+        ServerPlayNetworking.send(player, UI_OPEN, PacketByteBufs.empty());
+        sendUiState(player);
     }
 
     public static void sendUiState(ServerPlayerEntity player) {
@@ -48,7 +56,7 @@ public final class PalCraftNetworking {
         ServerPlayNetworking.send(player, UI_STATE, buffer);
     }
 
-    private static void handleUiAction(ServerPlayerEntity player, int action, int slot) {
+    private static void handleUiAction(ServerPlayerEntity player, int action, int slot, String value) {
         PlayerPalData palData = PlayerPalData.get(player.getServer());
         if (action == ACTION_SUMMON) {
             palData.summon(player, slot);
@@ -63,6 +71,9 @@ public final class PalCraftNetworking {
             if (slot >= 0 && slot < pals.size()) {
                 BaseData.get(player.getServer()).assignPalToNearestBase(player, pals.get(slot), null);
             }
+        }
+        if (action == ACTION_RENAME) {
+            palData.renamePal(player, slot, value);
         }
     }
 
@@ -79,6 +90,7 @@ public final class PalCraftNetworking {
             NbtCompound palNbt = new NbtCompound();
             palNbt.putInt("Slot", i);
             palNbt.putString("SpeciesName", Registries.ENTITY_TYPE.get(pal.speciesId()).getName().getString());
+            palNbt.putString("SpeciesTranslationKey", Registries.ENTITY_TYPE.get(pal.speciesId()).getTranslationKey());
             palNbt.putString("SpeciesId", pal.speciesId().toString());
             palNbt.putString("CustomName", pal.customName());
             palNbt.putInt("Level", pal.level());

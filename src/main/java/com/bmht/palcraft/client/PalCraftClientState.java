@@ -25,6 +25,7 @@ public final class PalCraftClientState {
             pals.add(new PalSummary(
                     palNbt.getInt("Slot"),
                     palNbt.getString("SpeciesName"),
+                    palNbt.getString("SpeciesTranslationKey"),
                     palNbt.getString("SpeciesId"),
                     palNbt.getString("CustomName"),
                     palNbt.getInt("Level"),
@@ -67,6 +68,7 @@ public final class PalCraftClientState {
     public record PalSummary(
             int slot,
             String speciesName,
+            String speciesTranslationKey,
             String speciesId,
             String customName,
             int level,
