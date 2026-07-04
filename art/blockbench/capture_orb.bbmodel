@@ -1,0 +1,83 @@
+{
+  "meta": {
+    "format_version": "4.10",
+    "model_format": "java_block",
+    "box_uv": false
+  },
+  "name": "capture_orb",
+  "model_identifier": "palcraft:capture_orb",
+  "visible_box": [
+    1,
+    1,
+    0
+  ],
+  "resolution": {
+    "width": 32,
+    "height": 32
+  },
+  "elements": [
+    {
+      "name": "capture_orb_plane",
+      "from": [
+        0,
+        0,
+        7.5
+      ],
+      "to": [
+        16,
+        16,
+        8.5
+      ],
+      "rotation": {
+        "angle": 0,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            32,
+            32
+          ],
+          "texture": 0
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            32,
+            32
+          ],
+          "texture": 0
+        }
+      },
+      "uuid": "2f7b4218-0d15-4e22-8da8-f0f62a5b8c1a"
+    }
+  ],
+  "outliner": [
+    "2f7b4218-0d15-4e22-8da8-f0f62a5b8c1a"
+  ],
+  "textures": [
+    {
+      "path": "../src/main/resources/assets/palcraft/textures/item/capture_orb.png",
+      "name": "capture_orb",
+      "folder": "",
+      "namespace": "palcraft",
+      "id": "0",
+      "particle": true,
+      "render_mode": "default",
+      "visible": true,
+      "mode": "bitmap",
+      "saved": true,
+      "uuid": "40d385f0-5c57-4fb4-b995-11222c04ad63",
+      "relative_path": "../src/main/resources/assets/palcraft/textures/item/capture_orb.png",
+      "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAFV0lEQVR42u2X+U/TZxzH/SsWj4HKDeU+Cwi1coMHuivLftnhXDbnppvTnZ54oaCI4IEIVEQEWkCgtFCgpVCg3CA3qNki02y/bJn642t5vlmJzAM8ZpZlT/LKu5/P50ne76Tt9/s8Cxb8v55yLXnFlSfxjxsHy5RP5IUH+bvx+ps3Sb5xg3XXb7B26jqrJyZJHJ8gYXScuOGxFxvkQeN1Y5Mkj01JunZ0kjUjEyQNjZMwOErcwAgxfcNE9VxD2TWIwto/K8hzmSf0jKLh/rRgTf84q/vHSeodk/pxXcPEWIeIar+G0jKAorWfCHMv4aYeQpu6CGnofLYQNvOolgFhPqDhPgkdwyRaRySNax8ixjIozZXNfSiMvUQ0dhNu6EJeZyVY10Ggtg3/aovEU4WwmUfou1DUd7OqoZfopj5iTQPEmwclFbXoi7nYF15rJbSmg5CqNoIqLfiXt+CrNuNdasLhnQPVQucdwhZAXmEh7Go7K6o7iNR2srK2C6WuW1JRi76Yi33BmlYCy8z4lzTjU2zEq6gJWWED7iqDhF3Stup5BbCZ+xYa8S8yEVjcTHBJC/LSVkLVFsLUFklFLfpiLvaJ/d6qRjwLGvDIq8cttw6XHB1OZ2tnMWcIWwCPc/V45hjwzm3EN68Jv3wj/gVGAgpMkorafqHrLNxO63HO0uGYqWV5RjVLj1dhl34VexvHq54cwGbulF6N84kaXDO0uGfq8DilR5alxzO7bgZhaM0InoXoLU2txO5wOYsPaliYUsbC/X+RUsaiFDWLDqgfH8IWYOd6L/ry1zCgWsvgxXVcK0xm6NJ6hosEG2aZ3x3ZIfFgCMuZOFqyY2g+FT2DWZAVw5Y4l7kDeLiG4StbSaBvDKFBiUSGJhMV8Qbxyrcfaf6oEEG+q/H1jMfTPRp3FwXOjuE4LpOz1C5g7gDuzqF4eyjw94lGHpDAipB1KMNfI1bx1kwAmyn3miQeDCH2BHgn4SOLQ+YahatTJI4OYSy3D8H+Vf+5A7g6yfF0i8TPK4pgv3jCgtagCNtAdMSb8w7g55WIl0cs7i6rcHaMwGF5KMvsgrFb4jd3AGeHEGQuEfjIVhHoE4s8YDUR8mSU4a/P+yvwkSUgc4vG1UmJk8MKli2VY/9qEEsW+84dYGuiG+1n4+k4F4/1XALWnAQ6zydKiM9z/Qjr0hTUpUWiT4uUVNT16QoMx1eyaZXD3AH+mG6d4e7PAgv3blskFb3fb7U89m84PWFgetzArfH6GUQt+rcnG7gz1Ti/Z8GvE/qH+GVcx52xWm6PaJkernnoQXS9r4Kp3gome8qZ6NbMIGrRF/N5Pwl/6tXAb33ZQm382KPmZlcZ1ztLmbKWMNF+hbG2YkYtlxluKWLIfInB5kIGTBfpN6roM6okFbXoi/lTvQ8mWlSzGDMXMGrKZ9iYx7WmCww25NJvOE9vXQ49+rN06c5g1Z6moyabtupstq5VNAoVteg/9dtwQH96Fn26bHq1WXTXnKKzKhPr1ZO0V2ZgKT9OiyYdszoNU+kxmkqO0liciuHyETbGhuSLWvSf6UxgVR+dob0slbaSI7ReOYy5+BDNRQcxXjpA48UUGlT7qC/Yiz5vD7oLu9Hm7kZ7fpekon6uU5FJtUfCWLCbxrxdGC78QH3u9+hzvqP23Ldoz35D9emvqcreSWXWDipOfUV55nY0mdslfSHnQoEu+0u0WV9Qk7mNqpNbqcz4nIoTn6FJ34I67VNKj22m5OhmrqR+QvGRj5//UPq4Y3nZ4Y8oPbSJKwc+pDhlI0X7P+DSvvcp3Pseqj3vvrz7wUu7mPxrrmb/2fUnHCGrMabz8t8AAAAASUVORK5CYII="
+    }
+  ]
+}
