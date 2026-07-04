@@ -27,6 +27,7 @@ import java.util.UUID;
 
 public class PlayerPalData extends PersistentState {
     private static final String STATE_ID = PalCraft.MOD_ID + "_player_pals";
+    public static final int MAX_CARRIED_PALS = 4;
 
     private final Map<UUID, PlayerRecord> records = new HashMap<>();
 
@@ -38,9 +39,15 @@ public class PlayerPalData extends PersistentState {
         );
     }
 
-    public void addCapturedPal(ServerPlayerEntity player, PalInstance palInstance) {
-        getRecord(player.getUuid()).storedPals.add(palInstance);
+    public AddResult addCapturedPal(ServerPlayerEntity player, PalInstance palInstance) {
+        PlayerRecord record = getRecord(player.getUuid());
+        if (record.storedPals.size() >= MAX_CARRIED_PALS) {
+            return AddResult.FULL;
+        }
+
+        record.storedPals.add(palInstance);
         markDirty();
+        return AddResult.CARRIED;
     }
 
     public List<PalInstance> getStoredPals(UUID playerUuid) {
@@ -278,5 +285,10 @@ public class PlayerPalData extends PersistentState {
         private final List<PalInstance> storedPals = new ArrayList<>();
         private int activeSlot = -1;
         private UUID activeEntityUuid;
+    }
+
+    public enum AddResult {
+        CARRIED,
+        FULL
     }
 }

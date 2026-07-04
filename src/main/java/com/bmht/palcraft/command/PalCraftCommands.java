@@ -181,6 +181,14 @@ public final class PalCraftCommands {
                 source.sendError(Text.translatable("message.palcraft.base.assign_no_base"));
                 yield 0;
             }
+            case INVALID_PAL -> {
+                source.sendError(Text.translatable("message.palcraft.command.invalid_slot"));
+                yield 0;
+            }
+            case NOT_DEPLOYED -> {
+                source.sendError(Text.translatable("message.palcraft.base.assign_not_deployed"));
+                yield 0;
+            }
         };
     }
 

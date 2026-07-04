@@ -24,6 +24,7 @@ public final class PalCraftClientState {
             NbtCompound palNbt = (NbtCompound) palElement;
             pals.add(new PalSummary(
                     palNbt.getInt("Slot"),
+                    palNbt.getString("InstanceUuid"),
                     palNbt.getString("SpeciesName"),
                     palNbt.getString("SpeciesTranslationKey"),
                     palNbt.getString("SpeciesId"),
@@ -46,27 +47,51 @@ public final class PalCraftClientState {
         NbtList baseList = nbt.getList("Bases", NbtElement.COMPOUND_TYPE);
         for (NbtElement baseElement : baseList) {
             NbtCompound baseNbt = (NbtCompound) baseElement;
+            List<BasePalSummary> storedPals = new ArrayList<>();
+            NbtList storedPalList = baseNbt.getList("StoredPals", NbtElement.COMPOUND_TYPE);
+            for (NbtElement storedPalElement : storedPalList) {
+                NbtCompound palNbt = (NbtCompound) storedPalElement;
+                storedPals.add(new BasePalSummary(
+                        palNbt.getInt("Slot"),
+                        palNbt.getString("InstanceUuid"),
+                        palNbt.getString("SpeciesName"),
+                        palNbt.getString("SpeciesTranslationKey"),
+                        palNbt.getString("CustomName"),
+                        palNbt.getInt("Level"),
+                        palNbt.getFloat("Health"),
+                        palNbt.getFloat("MaxHealth"),
+                        palNbt.getString("Element"),
+                        palNbt.getBoolean("Deployed"),
+                        palNbt.getBoolean("Assigned"),
+                        palNbt.getString("WorkType")
+                ));
+            }
             bases.add(new BaseSummary(
+                    baseNbt.getString("BaseUuid"),
                     baseNbt.getString("Position"),
                     baseNbt.getInt("Radius"),
                     baseNbt.getInt("AssignedCount"),
+                    baseNbt.getInt("StoredCount"),
+                    baseNbt.getInt("StorageBlockCount"),
                     baseNbt.getLong("TotalStock"),
                     baseNbt.getInt("QueuedTasks"),
                     baseNbt.getString("Assignments"),
-                    baseNbt.getString("Stock")
+                    baseNbt.getString("Stock"),
+                    List.copyOf(storedPals)
             ));
         }
-        latestState = new UiState(List.copyOf(pals), List.copyOf(bases));
+        latestState = new UiState(List.copyOf(pals), List.copyOf(bases), nbt.getInt("CarryLimit"));
     }
 
-    public record UiState(List<PalSummary> pals, List<BaseSummary> bases) {
+    public record UiState(List<PalSummary> pals, List<BaseSummary> bases, int carryLimit) {
         public static UiState empty() {
-            return new UiState(List.of(), List.of());
+            return new UiState(List.of(), List.of(), 4);
         }
     }
 
     public record PalSummary(
             int slot,
+            String instanceUuid,
             String speciesName,
             String speciesTranslationKey,
             String speciesId,
@@ -89,13 +114,36 @@ public final class PalCraftClientState {
     }
 
     public record BaseSummary(
+            String baseUuid,
             String position,
             int radius,
             int assignedCount,
+            int storedCount,
+            int storageBlockCount,
             long totalStock,
             int queuedTasks,
             String assignments,
-            String stock
+            String stock,
+            List<BasePalSummary> storedPals
     ) {
+    }
+
+    public record BasePalSummary(
+            int slot,
+            String instanceUuid,
+            String speciesName,
+            String speciesTranslationKey,
+            String customName,
+            int level,
+            float health,
+            float maxHealth,
+            String element,
+            boolean deployed,
+            boolean assigned,
+            String workType
+    ) {
+        public String displayName() {
+            return customName.isBlank() ? speciesName : customName;
+        }
     }
 }

@@ -1,6 +1,8 @@
 package com.bmht.palcraft.capture;
 
 import com.bmht.palcraft.PalCraft;
+import com.bmht.palcraft.base.BaseData;
+import com.bmht.palcraft.entity.SparkitEntity;
 import com.bmht.palcraft.partner.PalInstance;
 import com.bmht.palcraft.partner.PlayerPalData;
 import com.bmht.palcraft.registry.tag.ModEntityTypeTags;
@@ -43,9 +45,21 @@ public final class CaptureService {
 
         PalInstance palInstance = PalInstance.fromCapturedEntity(target, player);
         if (player instanceof ServerPlayerEntity serverPlayer) {
-            PlayerPalData.get(serverPlayer.getServer()).addCapturedPal(serverPlayer, palInstance);
+            PlayerPalData.AddResult addResult = PlayerPalData.get(serverPlayer.getServer()).addCapturedPal(serverPlayer, palInstance);
+            if (addResult == PlayerPalData.AddResult.FULL
+                    && BaseData.get(serverPlayer.getServer()).storePalInBestBase(serverPlayer, palInstance) == BaseData.StoreResult.NO_BASE) {
+                serverPlayer.sendMessage(Text.translatable("message.palcraft.capture_full_no_base"), false);
+                playFailureFeedback(target.getWorld(), target);
+                return CaptureResult.failed(chance);
+            }
+            if (addResult == PlayerPalData.AddResult.FULL) {
+                player.sendMessage(Text.translatable("message.palcraft.capture_sent_to_base", target.getDisplayName()), false);
+            } else {
+                player.sendMessage(Text.translatable("message.palcraft.capture_success", target.getDisplayName()), false);
+            }
+        } else {
+            player.sendMessage(Text.translatable("message.palcraft.capture_success", target.getDisplayName()), false);
         }
-        player.sendMessage(Text.translatable("message.palcraft.capture_success", target.getDisplayName()), false);
         target.discard();
         playSuccessFeedback(target.getWorld(), target);
         PalCraft.LOGGER.info("Captured {} as {} for {}", palInstance.speciesId(), palInstance.instanceUuid(), player.getGameProfile().getName());
@@ -53,6 +67,9 @@ public final class CaptureService {
     }
 
     private static boolean isCatchable(LivingEntity target) {
+        if (target instanceof SparkitEntity sparkitEntity && sparkitEntity.isCapturedPal()) {
+            return false;
+        }
         return target.getType().isIn(ModEntityTypeTags.CATCHABLE);
     }
 

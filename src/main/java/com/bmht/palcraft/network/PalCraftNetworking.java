@@ -13,8 +13,10 @@ import net.minecraft.network.PacketByteBuf;
 import net.minecraft.registry.Registries;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.BlockPos;
 
 import java.util.List;
+import java.util.UUID;
 
 public final class PalCraftNetworking {
     public static final Identifier UI_REQUEST = new Identifier(PalCraft.MOD_ID, "ui_request");
@@ -26,6 +28,10 @@ public final class PalCraftNetworking {
     private static final int ACTION_RECALL = 2;
     private static final int ACTION_ASSIGN_AUTO = 3;
     private static final int ACTION_RENAME = 4;
+    private static final int ACTION_ASSIGN_BASE = 5;
+    private static final int ACTION_UNASSIGN_BASE = 6;
+    private static final int ACTION_DEPLOY_BASE = 7;
+    private static final int ACTION_RECALL_BASE = 8;
 
     private PalCraftNetworking() {
     }
@@ -37,7 +43,7 @@ public final class PalCraftNetworking {
         ServerPlayNetworking.registerGlobalReceiver(UI_ACTION, (server, player, handler, buf, responseSender) -> {
             int action = buf.readVarInt();
             int slot = buf.readVarInt();
-            String value = action == ACTION_RENAME ? buf.readString(32) : "";
+            String value = buf.readableBytes() > 0 ? buf.readString(128) : "";
             server.execute(() -> {
                 handleUiAction(player, action, slot, value);
                 sendUiState(player);
@@ -46,8 +52,21 @@ public final class PalCraftNetworking {
     }
 
     public static void openManagementUi(ServerPlayerEntity player) {
-        ServerPlayNetworking.send(player, UI_OPEN, PacketByteBufs.empty());
+        PacketByteBuf buffer = PacketByteBufs.create();
+        buffer.writeString("player");
+        buffer.writeString("");
+        ServerPlayNetworking.send(player, UI_OPEN, buffer);
         sendUiState(player);
+    }
+
+    public static void openBaseManagementUi(ServerPlayerEntity player, BlockPos corePos) {
+        BaseData.get(player.getServer()).getBaseAt(player.getServerWorld(), corePos, player.getUuid()).ifPresent(base -> {
+            PacketByteBuf buffer = PacketByteBufs.create();
+            buffer.writeString("base");
+            buffer.writeString(base.baseUuid().toString());
+            ServerPlayNetworking.send(player, UI_OPEN, buffer);
+            sendUiState(player);
+        });
     }
 
     public static void sendUiState(ServerPlayerEntity player) {
@@ -75,6 +94,34 @@ public final class PalCraftNetworking {
         if (action == ACTION_RENAME) {
             palData.renamePal(player, slot, value);
         }
+        if (action == ACTION_ASSIGN_BASE) {
+            String[] parts = value.split("\\|", 2);
+            if (parts.length == 2) {
+                UUID baseUuid = UUID.fromString(parts[0]);
+                BaseWorkType workType = BaseWorkType.fromId(parts[1]);
+                BaseData.get(player.getServer()).assignStoredPal(player.getUuid(), baseUuid, slot, workType);
+            }
+        }
+        if (action == ACTION_UNASSIGN_BASE) {
+            String[] parts = value.split("\\|", 2);
+            if (parts.length == 2) {
+                UUID baseUuid = UUID.fromString(parts[0]);
+                UUID palUuid = UUID.fromString(parts[1]);
+                BaseData.get(player.getServer()).unassignStoredPal(player.getServer(), player.getUuid(), baseUuid, palUuid);
+            }
+        }
+        if (action == ACTION_DEPLOY_BASE) {
+            UUID baseUuid = UUID.fromString(value);
+            BaseData.get(player.getServer()).deployStoredPal(player.getServer(), player.getUuid(), baseUuid, slot);
+        }
+        if (action == ACTION_RECALL_BASE) {
+            String[] parts = value.split("\\|", 2);
+            if (parts.length == 2) {
+                UUID baseUuid = UUID.fromString(parts[0]);
+                UUID palUuid = UUID.fromString(parts[1]);
+                BaseData.get(player.getServer()).recallDeployedPal(player.getServer(), player.getUuid(), baseUuid, palUuid);
+            }
+        }
     }
 
     private static NbtCompound createUiState(ServerPlayerEntity player) {
@@ -89,6 +136,7 @@ public final class PalCraftNetworking {
             PalInstance pal = pals.get(i);
             NbtCompound palNbt = new NbtCompound();
             palNbt.putInt("Slot", i);
+            palNbt.putString("InstanceUuid", pal.instanceUuid().toString());
             palNbt.putString("SpeciesName", Registries.ENTITY_TYPE.get(pal.speciesId()).getName().getString());
             palNbt.putString("SpeciesTranslationKey", Registries.ENTITY_TYPE.get(pal.speciesId()).getTranslationKey());
             palNbt.putString("SpeciesId", pal.speciesId().toString());
@@ -107,17 +155,42 @@ public final class PalCraftNetworking {
             palList.add(palNbt);
         }
         state.put("Pals", palList);
+        state.putInt("CarryLimit", PlayerPalData.MAX_CARRIED_PALS);
 
         NbtList baseList = new NbtList();
-        for (BaseData.BaseView base : BaseData.get(player.getServer()).getBases(player.getUuid())) {
+        BaseData baseData = BaseData.get(player.getServer());
+        for (BaseData.BaseView base : baseData.getBases(player.getUuid())) {
             NbtCompound baseNbt = new NbtCompound();
+            baseNbt.putString("BaseUuid", base.baseUuid().toString());
             baseNbt.putString("Position", base.corePositionText());
             baseNbt.putInt("Radius", base.radius());
             baseNbt.putInt("AssignedCount", base.assignedCount());
+            baseNbt.putInt("StoredCount", base.storedPals().size());
+            baseNbt.putInt("StorageBlockCount", baseData.countStorageBlocks(player.getServer(), base.baseUuid()));
             baseNbt.putLong("TotalStock", base.gatheredMaterials());
             baseNbt.putInt("QueuedTasks", base.queuedTasks());
             baseNbt.putString("Assignments", base.assignmentSummary());
             baseNbt.putString("Stock", base.stockSummary());
+
+            NbtList storedPals = new NbtList();
+            for (BaseData.BasePalView storedPal : base.storedPals()) {
+                PalInstance pal = storedPal.pal();
+                NbtCompound storedPalNbt = new NbtCompound();
+                storedPalNbt.putInt("Slot", storedPal.slot());
+                storedPalNbt.putString("InstanceUuid", pal.instanceUuid().toString());
+                storedPalNbt.putString("SpeciesName", Registries.ENTITY_TYPE.get(pal.speciesId()).getName().getString());
+                storedPalNbt.putString("SpeciesTranslationKey", Registries.ENTITY_TYPE.get(pal.speciesId()).getTranslationKey());
+                storedPalNbt.putString("CustomName", pal.customName());
+                storedPalNbt.putInt("Level", pal.level());
+                storedPalNbt.putFloat("Health", pal.health());
+                storedPalNbt.putFloat("MaxHealth", pal.maxHealth());
+                storedPalNbt.putString("Element", pal.elementType().id());
+                storedPalNbt.putBoolean("Deployed", storedPal.deployed());
+                storedPalNbt.putBoolean("Assigned", storedPal.assigned());
+                storedPalNbt.putString("WorkType", storedPal.workType() == null ? "" : storedPal.workType().id());
+                storedPals.add(storedPalNbt);
+            }
+            baseNbt.put("StoredPals", storedPals);
             baseList.add(baseNbt);
         }
         state.put("Bases", baseList);

@@ -34,7 +34,7 @@ public class PalCraftClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openManagementKey.wasPressed()) {
                 if (client.player != null) {
-                    client.setScreen(new PalCraftManagementScreen());
+                    client.setScreen(PalCraftManagementScreen.player());
                 }
             }
         });

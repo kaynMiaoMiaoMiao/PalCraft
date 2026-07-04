@@ -12,17 +12,28 @@ public final class PalCraftClientNetworking {
     public static final int ACTION_RECALL = 2;
     public static final int ACTION_ASSIGN_AUTO = 3;
     public static final int ACTION_RENAME = 4;
+    public static final int ACTION_ASSIGN_BASE = 5;
+    public static final int ACTION_UNASSIGN_BASE = 6;
+    public static final int ACTION_DEPLOY_BASE = 7;
+    public static final int ACTION_RECALL_BASE = 8;
 
     private PalCraftClientNetworking() {
     }
 
     public static void registerReceivers() {
-        ClientPlayNetworking.registerGlobalReceiver(PalCraftNetworking.UI_OPEN, (client, handler, buf, responseSender) ->
-                client.execute(() -> {
-                    if (client.player != null && !(client.currentScreen instanceof PalCraftManagementScreen)) {
-                        client.setScreen(new PalCraftManagementScreen());
+        ClientPlayNetworking.registerGlobalReceiver(PalCraftNetworking.UI_OPEN, (client, handler, buf, responseSender) -> {
+            String mode = buf.readString();
+            String baseUuid = buf.readString();
+            client.execute(() -> {
+                if (client.player != null) {
+                    if ("base".equals(mode)) {
+                        client.setScreen(PalCraftManagementScreen.base(baseUuid));
+                    } else if (!(client.currentScreen instanceof PalCraftManagementScreen)) {
+                        client.setScreen(PalCraftManagementScreen.player());
                     }
-                }));
+                }
+            });
+        });
 
         ClientPlayNetworking.registerGlobalReceiver(PalCraftNetworking.UI_STATE, (client, handler, buf, responseSender) -> {
             var nbt = buf.readNbt();
@@ -45,6 +56,7 @@ public final class PalCraftClientNetworking {
         PacketByteBuf buffer = PacketByteBufs.create();
         buffer.writeVarInt(action);
         buffer.writeVarInt(slot);
+        buffer.writeString("");
         ClientPlayNetworking.send(PalCraftNetworking.UI_ACTION, buffer);
     }
 
@@ -53,6 +65,38 @@ public final class PalCraftClientNetworking {
         buffer.writeVarInt(ACTION_RENAME);
         buffer.writeVarInt(slot);
         buffer.writeString(name, 32);
+        ClientPlayNetworking.send(PalCraftNetworking.UI_ACTION, buffer);
+    }
+
+    public static void sendBaseAssign(String baseUuid, int storageSlot, String workType) {
+        PacketByteBuf buffer = PacketByteBufs.create();
+        buffer.writeVarInt(ACTION_ASSIGN_BASE);
+        buffer.writeVarInt(storageSlot);
+        buffer.writeString(baseUuid + "|" + workType, 128);
+        ClientPlayNetworking.send(PalCraftNetworking.UI_ACTION, buffer);
+    }
+
+    public static void sendBaseUnassign(String baseUuid, String palUuid) {
+        PacketByteBuf buffer = PacketByteBufs.create();
+        buffer.writeVarInt(ACTION_UNASSIGN_BASE);
+        buffer.writeVarInt(-1);
+        buffer.writeString(baseUuid + "|" + palUuid, 128);
+        ClientPlayNetworking.send(PalCraftNetworking.UI_ACTION, buffer);
+    }
+
+    public static void sendBaseDeploy(String baseUuid, int storageSlot) {
+        PacketByteBuf buffer = PacketByteBufs.create();
+        buffer.writeVarInt(ACTION_DEPLOY_BASE);
+        buffer.writeVarInt(storageSlot);
+        buffer.writeString(baseUuid, 128);
+        ClientPlayNetworking.send(PalCraftNetworking.UI_ACTION, buffer);
+    }
+
+    public static void sendBaseRecall(String baseUuid, String palUuid) {
+        PacketByteBuf buffer = PacketByteBufs.create();
+        buffer.writeVarInt(ACTION_RECALL_BASE);
+        buffer.writeVarInt(-1);
+        buffer.writeString(baseUuid + "|" + palUuid, 128);
         ClientPlayNetworking.send(PalCraftNetworking.UI_ACTION, buffer);
     }
 }

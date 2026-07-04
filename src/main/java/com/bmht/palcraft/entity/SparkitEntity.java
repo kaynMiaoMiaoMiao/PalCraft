@@ -35,6 +35,7 @@ import net.minecraft.util.math.random.Random;
 import net.minecraft.world.ServerWorldAccess;
 import net.minecraft.world.World;
 
+import com.bmht.palcraft.base.BaseData;
 import com.bmht.palcraft.partner.PalInstance;
 import com.bmht.palcraft.partner.PalSkill;
 import com.bmht.palcraft.partner.PlayerPalData;
@@ -45,6 +46,10 @@ import java.util.UUID;
 public class SparkitEntity extends PathAwareEntity {
     private static final String OWNER_UUID_KEY = "PalCraftOwnerUuid";
     private static final String INSTANCE_UUID_KEY = "PalCraftInstanceUuid";
+    private static final String BASE_UUID_KEY = "PalCraftBaseUuid";
+    private static final String BASE_X_KEY = "PalCraftBaseX";
+    private static final String BASE_Y_KEY = "PalCraftBaseY";
+    private static final String BASE_Z_KEY = "PalCraftBaseZ";
     private static final double FOLLOW_START_DISTANCE_SQUARED = 25.0D;
     private static final double FOLLOW_STOP_DISTANCE_SQUARED = 9.0D;
     private static final double LOW_HEALTH_RETURN_DISTANCE_SQUARED = 4.0D;
@@ -53,6 +58,8 @@ public class SparkitEntity extends PathAwareEntity {
 
     private UUID ownerUuid;
     private UUID instanceUuid;
+    private UUID baseUuid;
+    private BlockPos baseCorePos;
     private UUID lastAssistTargetUuid;
     private UUID lastProtectTargetUuid;
     private boolean lowHealthWarningSent;
@@ -86,6 +93,7 @@ public class SparkitEntity extends PathAwareEntity {
         this.goalSelector.add(0, new SwimGoal(this));
         this.goalSelector.add(1, new MeleeAttackGoal(this, 1.15D, true));
         this.goalSelector.add(2, new FollowSummonedOwnerGoal(this, 1.2D));
+        this.goalSelector.add(4, new BaseWorkerWanderGoal(this, 0.85D));
         this.goalSelector.add(5, new WildWanderGoal(this, 0.9D));
         this.goalSelector.add(6, new LookAtEntityGoal(this, PlayerEntity.class, 6.0F));
         this.goalSelector.add(7, new LookAroundGoal(this));
@@ -140,6 +148,14 @@ public class SparkitEntity extends PathAwareEntity {
         if (instanceUuid != null) {
             nbt.putUuid(INSTANCE_UUID_KEY, instanceUuid);
         }
+        if (baseUuid != null) {
+            nbt.putUuid(BASE_UUID_KEY, baseUuid);
+        }
+        if (baseCorePos != null) {
+            nbt.putInt(BASE_X_KEY, baseCorePos.getX());
+            nbt.putInt(BASE_Y_KEY, baseCorePos.getY());
+            nbt.putInt(BASE_Z_KEY, baseCorePos.getZ());
+        }
     }
 
     @Override
@@ -147,13 +163,19 @@ public class SparkitEntity extends PathAwareEntity {
         super.readCustomDataFromNbt(nbt);
         ownerUuid = nbt.containsUuid(OWNER_UUID_KEY) ? nbt.getUuid(OWNER_UUID_KEY) : null;
         instanceUuid = nbt.containsUuid(INSTANCE_UUID_KEY) ? nbt.getUuid(INSTANCE_UUID_KEY) : null;
+        baseUuid = nbt.containsUuid(BASE_UUID_KEY) ? nbt.getUuid(BASE_UUID_KEY) : null;
+        baseCorePos = nbt.contains(BASE_X_KEY)
+                ? new BlockPos(nbt.getInt(BASE_X_KEY), nbt.getInt(BASE_Y_KEY), nbt.getInt(BASE_Z_KEY))
+                : null;
     }
 
     @Override
     public void onDeath(DamageSource damageSource) {
         sendDeathMessage();
         super.onDeath(damageSource);
-        if (this.getWorld() instanceof ServerWorld serverWorld && ownerUuid != null) {
+        if (this.getWorld() instanceof ServerWorld serverWorld && ownerUuid != null && baseUuid != null && instanceUuid != null) {
+            BaseData.get(serverWorld.getServer()).markBaseWorkerDead(ownerUuid, baseUuid, instanceUuid, this.getUuid(), 0.0F);
+        } else if (this.getWorld() instanceof ServerWorld serverWorld && ownerUuid != null) {
             PlayerPalData.get(serverWorld.getServer()).markActivePalDead(ownerUuid, this.getUuid());
         }
     }
@@ -161,12 +183,31 @@ public class SparkitEntity extends PathAwareEntity {
     public void setSummonedPalData(UUID ownerUuid, PalInstance palInstance) {
         this.ownerUuid = ownerUuid;
         this.instanceUuid = palInstance.instanceUuid();
+        this.baseUuid = null;
+        this.baseCorePos = null;
         applyPalInstanceStats(palInstance, false);
         this.setPersistent();
     }
 
     public boolean isSummonedPal() {
-        return ownerUuid != null;
+        return ownerUuid != null && baseUuid == null;
+    }
+
+    public void setBaseWorkerData(UUID ownerUuid, UUID baseUuid, BlockPos baseCorePos, PalInstance palInstance) {
+        this.ownerUuid = ownerUuid;
+        this.instanceUuid = palInstance.instanceUuid();
+        this.baseUuid = baseUuid;
+        this.baseCorePos = baseCorePos.toImmutable();
+        applyPalInstanceStats(palInstance, false);
+        this.setPersistent();
+    }
+
+    public boolean isBaseWorker() {
+        return ownerUuid != null && baseUuid != null;
+    }
+
+    public boolean isCapturedPal() {
+        return ownerUuid != null && instanceUuid != null;
     }
 
     public UUID getOwnerUuid() {
@@ -459,6 +500,9 @@ public class SparkitEntity extends PathAwareEntity {
 
         @Override
         public boolean canStart() {
+            if (!sparkit.isSummonedPal()) {
+                return false;
+            }
             ServerPlayerEntity owner = sparkit.getOwner();
             if (owner == null || !owner.isAlive() || owner.getWorld() != sparkit.getWorld()) {
                 return false;
@@ -472,6 +516,9 @@ public class SparkitEntity extends PathAwareEntity {
 
         @Override
         public boolean shouldContinue() {
+            if (!sparkit.isSummonedPal()) {
+                return false;
+            }
             ServerPlayerEntity owner = sparkit.getOwner();
             if (owner == null || !owner.isAlive() || owner.getWorld() != sparkit.getWorld()) {
                 return false;
@@ -513,6 +560,39 @@ public class SparkitEntity extends PathAwareEntity {
         }
     }
 
+    private static final class BaseWorkerWanderGoal extends Goal {
+        private final SparkitEntity sparkit;
+        private final double speed;
+        private int cooldown;
+
+        private BaseWorkerWanderGoal(SparkitEntity sparkit, double speed) {
+            this.sparkit = sparkit;
+            this.speed = speed;
+            this.setControls(EnumSet.of(Control.MOVE, Control.LOOK));
+        }
+
+        @Override
+        public boolean canStart() {
+            return sparkit.isBaseWorker() && sparkit.baseCorePos != null && cooldown-- <= 0;
+        }
+
+        @Override
+        public void start() {
+            cooldown = 60 + sparkit.random.nextInt(80);
+            BlockPos target = sparkit.baseCorePos.add(
+                    sparkit.random.nextBetween(-5, 5),
+                    0,
+                    sparkit.random.nextBetween(-5, 5)
+            );
+            sparkit.getNavigation().startMovingTo(target.getX() + 0.5D, target.getY() + 1.0D, target.getZ() + 0.5D, speed);
+        }
+
+        @Override
+        public boolean shouldContinue() {
+            return sparkit.isBaseWorker() && !sparkit.getNavigation().isIdle();
+        }
+    }
+
     private static final class WildWanderGoal extends WanderAroundFarGoal {
         private final SparkitEntity sparkit;
 
@@ -523,7 +603,7 @@ public class SparkitEntity extends PathAwareEntity {
 
         @Override
         public boolean canStart() {
-            return !sparkit.isSummonedPal() && super.canStart();
+            return !sparkit.isSummonedPal() && !sparkit.isBaseWorker() && super.canStart();
         }
     }
 }

@@ -8,6 +8,14 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.CropBlock;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityType;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
@@ -18,10 +26,13 @@ import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.PersistentState;
 import net.minecraft.world.World;
+
+import com.bmht.palcraft.entity.SparkitEntity;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -90,6 +101,125 @@ public class BaseData extends PersistentState {
                 .toList();
     }
 
+    public Optional<BaseView> getBaseAt(ServerWorld world, BlockPos corePos, UUID ownerUuid) {
+        Identifier dimensionId = world.getRegistryKey().getValue();
+        return findBaseAt(dimensionId, corePos)
+                .filter(base -> base.ownerUuid.equals(ownerUuid))
+                .map(BaseRecord::toView);
+    }
+
+    public StoreResult storePalInBestBase(ServerPlayerEntity player, PalInstance palInstance) {
+        Optional<BaseRecord> base = findBestStorageBase(player);
+        if (base.isEmpty()) {
+            return StoreResult.NO_BASE;
+        }
+
+        base.get().storedPals.add(palInstance);
+        markDirty();
+        return StoreResult.STORED;
+    }
+
+    public AssignResult assignStoredPal(UUID ownerUuid, UUID baseUuid, int storageSlot, BaseWorkType requestedWorkType) {
+        Optional<BaseRecord> matchingBase = bases.stream()
+                .filter(base -> base.ownerUuid.equals(ownerUuid))
+                .filter(base -> base.baseUuid.equals(baseUuid))
+                .findFirst();
+        if (matchingBase.isEmpty()) {
+            return AssignResult.noBaseNearby();
+        }
+
+        BaseRecord base = matchingBase.get();
+        if (storageSlot < 0 || storageSlot >= base.storedPals.size()) {
+            return AssignResult.invalidPal();
+        }
+
+        PalInstance pal = base.storedPals.get(storageSlot);
+        if (!base.hasDeployment(pal.instanceUuid())) {
+            return AssignResult.notDeployed(base.toView());
+        }
+        if (base.hasAssignment(pal.instanceUuid())) {
+            return AssignResult.alreadyAssigned(base.toView());
+        }
+
+        BaseWorkType workType = requestedWorkType == null ? BaseWorkType.bestFor(pal) : requestedWorkType;
+        base.assignments.add(new AssignedPal(pal.instanceUuid(), workType));
+        markDirty();
+        return AssignResult.assigned(base.toView(), workType);
+    }
+
+    public boolean unassignStoredPal(MinecraftServer server, UUID ownerUuid, UUID baseUuid, UUID palUuid) {
+        Optional<BaseRecord> matchingBase = bases.stream()
+                .filter(base -> base.ownerUuid.equals(ownerUuid))
+                .filter(base -> base.baseUuid.equals(baseUuid))
+                .findFirst();
+        if (matchingBase.isEmpty()) {
+            return false;
+        }
+
+        BaseRecord base = matchingBase.get();
+        boolean removed = base.assignments.removeIf(assignment -> assignment.palUuid.equals(palUuid));
+        if (removed) {
+            markDirty();
+        }
+        return removed;
+    }
+
+    public DeployResult deployStoredPal(MinecraftServer server, UUID ownerUuid, UUID baseUuid, int storageSlot) {
+        Optional<BaseRecord> matchingBase = bases.stream()
+                .filter(base -> base.ownerUuid.equals(ownerUuid))
+                .filter(base -> base.baseUuid.equals(baseUuid))
+                .findFirst();
+        if (matchingBase.isEmpty()) {
+            return DeployResult.NO_BASE;
+        }
+
+        BaseRecord base = matchingBase.get();
+        if (storageSlot < 0 || storageSlot >= base.storedPals.size()) {
+            return DeployResult.INVALID_PAL;
+        }
+
+        PalInstance pal = base.storedPals.get(storageSlot);
+        if (base.hasDeployment(pal.instanceUuid())) {
+            return DeployResult.ALREADY_DEPLOYED;
+        }
+
+        ServerWorld world = server.getWorld(RegistryKey.of(RegistryKeys.WORLD, base.dimensionId));
+        if (world == null || pal.health() <= 0.0F) {
+            return DeployResult.INVALID_PAL;
+        }
+
+        DeployedPal deployment = new DeployedPal(pal.instanceUuid());
+        if (!ensureWorkerEntity(world, base, deployment, pal)) {
+            return DeployResult.SPAWN_FAILED;
+        }
+
+        base.deployments.add(deployment);
+        markDirty();
+        return DeployResult.DEPLOYED;
+    }
+
+    public boolean recallDeployedPal(MinecraftServer server, UUID ownerUuid, UUID baseUuid, UUID palUuid) {
+        Optional<BaseRecord> matchingBase = bases.stream()
+                .filter(base -> base.ownerUuid.equals(ownerUuid))
+                .filter(base -> base.baseUuid.equals(baseUuid))
+                .findFirst();
+        if (matchingBase.isEmpty()) {
+            return false;
+        }
+
+        BaseRecord base = matchingBase.get();
+        base.deployments.stream()
+                .filter(deployment -> deployment.palUuid.equals(palUuid))
+                .findFirst()
+                .ifPresent(deployment -> discardWorkerEntity(server, base, deployment));
+        boolean removed = base.deployments.removeIf(deployment -> deployment.palUuid.equals(palUuid));
+        boolean unassigned = base.assignments.removeIf(assignment -> assignment.palUuid.equals(palUuid));
+        if (removed || unassigned) {
+            markDirty();
+        }
+        return removed;
+    }
+
     public AssignResult assignPalToNearestBase(ServerPlayerEntity player, PalInstance palInstance, BaseWorkType requestedWorkType) {
         Optional<BaseRecord> duplicate = bases.stream()
                 .filter(base -> base.ownerUuid.equals(player.getUuid()))
@@ -106,6 +236,12 @@ public class BaseData extends PersistentState {
 
         BaseRecord base = nearestBase.get();
         BaseWorkType workType = requestedWorkType == null ? BaseWorkType.bestFor(palInstance) : requestedWorkType;
+        if (base.storedPals.stream().noneMatch(storedPal -> storedPal.instanceUuid().equals(palInstance.instanceUuid()))) {
+            base.storedPals.add(palInstance);
+        }
+        if (!base.hasDeployment(palInstance.instanceUuid())) {
+            return AssignResult.notDeployed(base.toView());
+        }
         base.assignments.add(new AssignedPal(palInstance.instanceUuid(), workType));
         markDirty();
         return AssignResult.assigned(base.toView(), workType);
@@ -115,7 +251,7 @@ public class BaseData extends PersistentState {
         PlayerPalData palData = PlayerPalData.get(server);
         boolean changed = false;
         for (BaseRecord base : bases) {
-            if (base.assignments.isEmpty()) {
+            if (base.deployments.isEmpty() && base.assignments.isEmpty()) {
                 continue;
             }
 
@@ -124,16 +260,34 @@ public class BaseData extends PersistentState {
                 continue;
             }
 
+            List<PalInstance> ownerPals = palData.getStoredPals(base.ownerUuid);
+            for (DeployedPal deployment : base.deployments) {
+                Optional<PalInstance> pal = findPal(base.storedPals, deployment.palUuid)
+                        .or(() -> findPal(ownerPals, deployment.palUuid));
+                if (pal.isEmpty()) {
+                    continue;
+                }
+                changed |= ensureWorkerEntity(world, base, deployment, pal.get());
+            }
+
+            if (base.assignments.isEmpty()) {
+                continue;
+            }
+
             if (server.getTicks() >= base.nextTaskScanTick && base.taskQueue.size() < MAX_TASK_QUEUE_SIZE) {
                 changed |= enqueueDiscoveredTasks(base, world, server.getTicks());
             }
 
-            List<PalInstance> ownerPals = palData.getStoredPals(base.ownerUuid);
             for (AssignedPal assignment : base.assignments) {
-                Optional<PalInstance> pal = findPal(ownerPals, assignment.palUuid);
+                if (!base.hasDeployment(assignment.palUuid)) {
+                    continue;
+                }
+                Optional<PalInstance> pal = findPal(base.storedPals, assignment.palUuid)
+                        .or(() -> findPal(ownerPals, assignment.palUuid));
                 if (pal.isEmpty()) {
                     continue;
                 }
+
                 Optional<BaseTask> task = base.findTaskFor(assignment.workType);
                 if (task.isEmpty()) {
                     continue;
@@ -142,9 +296,8 @@ public class BaseData extends PersistentState {
                 BaseTask baseTask = task.get();
                 baseTask.progress += Math.max(1, assignment.workType.suitability(pal.get()));
                 if (baseTask.progress >= baseTask.requiredWork) {
-                    base.taskQueue.remove(baseTask);
                     if (completeTask(world, baseTask)) {
-                        base.addStock(baseTask.workType, 1L);
+                        base.taskQueue.remove(baseTask);
                     }
                 }
                 changed = true;
@@ -174,7 +327,7 @@ public class BaseData extends PersistentState {
 
     private Optional<BlockPos> findTargetForWork(BaseRecord base, ServerWorld world, BaseWorkType workType) {
         if (workType == BaseWorkType.HAULING || workType == BaseWorkType.MANUFACTURING) {
-            return Optional.of(base.corePos);
+            return Optional.empty();
         }
 
         int diameter = base.radius * 2 + 1;
@@ -202,11 +355,16 @@ public class BaseData extends PersistentState {
 
     private boolean completeTask(ServerWorld world, BaseTask task) {
         if (task.workType == BaseWorkType.HAULING || task.workType == BaseWorkType.MANUFACTURING) {
-            return true;
+            return false;
         }
 
         BlockState state = world.getBlockState(task.targetPos);
         if (!isValidWorkTarget(state, task.workType)) {
+            return false;
+        }
+
+        ItemStack result = createTaskResult(state, task.workType);
+        if (result.isEmpty() || !insertIntoNearbyStorage(world, task.targetPos, result)) {
             return false;
         }
 
@@ -218,6 +376,59 @@ public class BaseData extends PersistentState {
 
         world.breakBlock(task.targetPos, false);
         return true;
+    }
+
+    private ItemStack createTaskResult(BlockState state, BaseWorkType workType) {
+        if (workType == BaseWorkType.PLANTING) {
+            return new ItemStack(Items.WHEAT);
+        }
+        if (state.getBlock().asItem() == Items.AIR) {
+            return ItemStack.EMPTY;
+        }
+        return new ItemStack(state.getBlock().asItem());
+    }
+
+    private boolean insertIntoNearbyStorage(ServerWorld world, BlockPos taskPos, ItemStack stack) {
+        Optional<BaseRecord> base = bases.stream()
+                .filter(record -> record.dimensionId.equals(world.getRegistryKey().getValue()))
+                .filter(record -> isWithinBase(record, taskPos))
+                .findFirst();
+        if (base.isEmpty()) {
+            return false;
+        }
+
+        for (BlockPos pos : scanBasePositions(base.get())) {
+            BlockEntity blockEntity = world.getBlockEntity(pos);
+            if (blockEntity instanceof Inventory inventory && insertStack(inventory, stack.copy())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean insertStack(Inventory inventory, ItemStack stack) {
+        for (int slot = 0; slot < inventory.size(); slot++) {
+            ItemStack existing = inventory.getStack(slot);
+            if (existing.isEmpty()) {
+                int amount = Math.min(stack.getCount(), inventory.getMaxCountPerStack());
+                ItemStack inserted = stack.copy();
+                inserted.setCount(amount);
+                inventory.setStack(slot, inserted);
+                stack.decrement(amount);
+                inventory.markDirty();
+            } else if (ItemStack.canCombine(existing, stack) && existing.getCount() < Math.min(existing.getMaxCount(), inventory.getMaxCountPerStack())) {
+                int limit = Math.min(existing.getMaxCount(), inventory.getMaxCountPerStack());
+                int amount = Math.min(stack.getCount(), limit - existing.getCount());
+                existing.increment(amount);
+                stack.decrement(amount);
+                inventory.markDirty();
+            }
+
+            if (stack.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isValidWorkTarget(BlockState state, BaseWorkType workType) {
@@ -244,6 +455,117 @@ public class BaseData extends PersistentState {
                 || state.isOf(Blocks.SANDSTONE);
     }
 
+    private boolean ensureWorkerEntity(ServerWorld world, BaseRecord base, DeployedPal deployment, PalInstance palInstance) {
+        if (deployment.entityUuid != null) {
+            Entity existing = world.getEntity(deployment.entityUuid);
+            if (existing != null && existing.isAlive()) {
+                keepWorkerNearBase(existing, base);
+                return false;
+            }
+            deployment.entityUuid = null;
+        }
+
+        if (palInstance.health() <= 0.0F) {
+            return false;
+        }
+
+        EntityType<?> entityType = Registries.ENTITY_TYPE.get(palInstance.speciesId());
+        Entity entity = entityType.create(world);
+        if (!(entity instanceof LivingEntity livingEntity)) {
+            return false;
+        }
+
+        BlockPos spawnPos = findWorkerSpawnPos(world, base);
+        livingEntity.refreshPositionAndAngles(
+                spawnPos.getX() + 0.5D,
+                spawnPos.getY(),
+                spawnPos.getZ() + 0.5D,
+                world.random.nextFloat() * 360.0F,
+                0.0F
+        );
+        if (!palInstance.customName().isBlank()) {
+            livingEntity.setCustomName(Text.literal(palInstance.customName()));
+        }
+        if (livingEntity instanceof MobEntity mobEntity) {
+            mobEntity.setPersistent();
+        }
+        if (livingEntity instanceof SparkitEntity sparkitEntity) {
+            sparkitEntity.setBaseWorkerData(base.ownerUuid, base.baseUuid, base.corePos, palInstance);
+        }
+        livingEntity.setHealth(Math.max(1.0F, Math.min(palInstance.health(), livingEntity.getMaxHealth())));
+        if (!world.spawnEntity(livingEntity)) {
+            return false;
+        }
+
+        deployment.entityUuid = livingEntity.getUuid();
+        return true;
+    }
+
+    private void keepWorkerNearBase(Entity entity, BaseRecord base) {
+        double maxDistanceSquared = (base.radius + 6.0D) * (base.radius + 6.0D);
+        if (entity.getBlockPos().getSquaredDistance(base.corePos) <= maxDistanceSquared) {
+            return;
+        }
+        entity.refreshPositionAndAngles(
+                base.corePos.getX() + 0.5D,
+                base.corePos.getY() + 1.0D,
+                base.corePos.getZ() + 0.5D,
+                entity.getYaw(),
+                entity.getPitch()
+        );
+    }
+
+    private void discardWorkerEntity(MinecraftServer server, BaseRecord base, DeployedPal deployment) {
+        if (deployment.entityUuid == null) {
+            return;
+        }
+        ServerWorld world = server.getWorld(RegistryKey.of(RegistryKeys.WORLD, base.dimensionId));
+        if (world == null) {
+            return;
+        }
+        Entity entity = world.getEntity(deployment.entityUuid);
+        if (entity != null) {
+            if (entity instanceof LivingEntity livingEntity) {
+                replacePalHealth(base.storedPals, deployment.palUuid, livingEntity.getHealth());
+            }
+            entity.discard();
+        }
+        deployment.entityUuid = null;
+    }
+
+    private BlockPos findWorkerSpawnPos(ServerWorld world, BaseRecord base) {
+        for (int attempt = 0; attempt < 16; attempt++) {
+            int xOffset = world.random.nextBetween(-3, 3);
+            int zOffset = world.random.nextBetween(-3, 3);
+            BlockPos pos = base.corePos.add(xOffset, 1, zOffset);
+            if (world.isSpaceEmpty(null, net.minecraft.util.math.Box.from(net.minecraft.util.math.Vec3d.of(pos)))) {
+                return pos;
+            }
+        }
+        return base.corePos.up();
+    }
+
+    public void markBaseWorkerDead(UUID ownerUuid, UUID baseUuid, UUID palUuid, UUID entityUuid, float health) {
+        Optional<BaseRecord> matchingBase = bases.stream()
+                .filter(base -> base.ownerUuid.equals(ownerUuid))
+                .filter(base -> base.baseUuid.equals(baseUuid))
+                .findFirst();
+        if (matchingBase.isEmpty()) {
+            return;
+        }
+
+        BaseRecord base = matchingBase.get();
+        replacePalHealth(base.storedPals, palUuid, health);
+        for (DeployedPal deployment : base.deployments) {
+            if (deployment.palUuid.equals(palUuid) && entityUuid.equals(deployment.entityUuid)) {
+                deployment.entityUuid = null;
+            }
+        }
+        base.deployments.removeIf(deployment -> deployment.palUuid.equals(palUuid));
+        base.assignments.removeIf(assignment -> assignment.palUuid.equals(palUuid));
+        markDirty();
+    }
+
     @Override
     public NbtCompound writeNbt(NbtCompound nbt) {
         NbtList baseList = new NbtList();
@@ -267,6 +589,23 @@ public class BaseData extends PersistentState {
                 assignedPals.add(palNbt);
             }
             baseNbt.put("AssignedPals", assignedPals);
+
+            NbtList deployedPals = new NbtList();
+            for (DeployedPal deployment : base.deployments) {
+                NbtCompound palNbt = new NbtCompound();
+                palNbt.putUuid("PalUuid", deployment.palUuid);
+                if (deployment.entityUuid != null) {
+                    palNbt.putUuid("EntityUuid", deployment.entityUuid);
+                }
+                deployedPals.add(palNbt);
+            }
+            baseNbt.put("DeployedPals", deployedPals);
+
+            NbtList storedPals = new NbtList();
+            for (PalInstance palInstance : base.storedPals) {
+                storedPals.add(palInstance.writeNbt());
+            }
+            baseNbt.put("StoredPals", storedPals);
 
             NbtList stockList = new NbtList();
             for (Map.Entry<BaseWorkType, Long> stockEntry : base.stock.entrySet()) {
@@ -322,7 +661,33 @@ public class BaseData extends PersistentState {
                 BaseWorkType workType = palNbt.contains("WorkType")
                         ? BaseWorkType.fromId(palNbt.getString("WorkType"))
                         : BaseWorkType.HAULING;
-                record.assignments.add(new AssignedPal(palNbt.getUuid("PalUuid"), workType));
+                AssignedPal assignment = new AssignedPal(palNbt.getUuid("PalUuid"), workType);
+                record.assignments.add(assignment);
+
+                // Migration path for the previous implementation, where assignment implied a spawned worker.
+                if (palNbt.containsUuid("EntityUuid")) {
+                    DeployedPal deployment = new DeployedPal(palNbt.getUuid("PalUuid"));
+                    deployment.entityUuid = palNbt.getUuid("EntityUuid");
+                    record.deployments.add(deployment);
+                }
+            }
+
+            NbtList deployedPals = baseNbt.getList("DeployedPals", NbtElement.COMPOUND_TYPE);
+            for (NbtElement palElement : deployedPals) {
+                NbtCompound palNbt = (NbtCompound) palElement;
+                if (record.hasDeployment(palNbt.getUuid("PalUuid"))) {
+                    continue;
+                }
+                DeployedPal deployment = new DeployedPal(palNbt.getUuid("PalUuid"));
+                if (palNbt.containsUuid("EntityUuid")) {
+                    deployment.entityUuid = palNbt.getUuid("EntityUuid");
+                }
+                record.deployments.add(deployment);
+            }
+
+            NbtList storedPals = baseNbt.getList("StoredPals", NbtElement.COMPOUND_TYPE);
+            for (NbtElement palElement : storedPals) {
+                record.storedPals.add(PalInstance.fromNbt((NbtCompound) palElement));
             }
 
             if (baseNbt.contains("Stock", NbtElement.LIST_TYPE)) {
@@ -364,10 +729,64 @@ public class BaseData extends PersistentState {
                 .min(Comparator.comparingDouble(base -> base.corePos.getSquaredDistance(playerPos)));
     }
 
+    private Optional<BaseRecord> findBestStorageBase(ServerPlayerEntity player) {
+        Identifier dimensionId = player.getWorld().getRegistryKey().getValue();
+        BlockPos playerPos = player.getBlockPos();
+        return bases.stream()
+                .filter(base -> base.ownerUuid.equals(player.getUuid()))
+                .min(Comparator
+                        .comparing((BaseRecord base) -> !base.dimensionId.equals(dimensionId))
+                        .thenComparingDouble(base -> base.dimensionId.equals(dimensionId)
+                                ? base.corePos.getSquaredDistance(playerPos)
+                                : Double.MAX_VALUE));
+    }
+
     private Optional<BaseRecord> findBaseAt(Identifier dimensionId, BlockPos corePos) {
         return bases.stream()
                 .filter(base -> base.dimensionId.equals(dimensionId) && base.corePos.equals(corePos))
                 .findFirst();
+    }
+
+    private boolean isWithinBase(BaseRecord base, BlockPos pos) {
+        return Math.abs(pos.getX() - base.corePos.getX()) <= base.radius
+                && Math.abs(pos.getZ() - base.corePos.getZ()) <= base.radius
+                && pos.getY() >= base.corePos.getY() + SCAN_Y_MIN
+                && pos.getY() <= base.corePos.getY() + SCAN_Y_MAX;
+    }
+
+    private List<BlockPos> scanBasePositions(BaseRecord base) {
+        List<BlockPos> positions = new ArrayList<>();
+        for (int dx = -base.radius; dx <= base.radius; dx++) {
+            for (int dz = -base.radius; dz <= base.radius; dz++) {
+                for (int dy = SCAN_Y_MIN; dy <= SCAN_Y_MAX; dy++) {
+                    positions.add(base.corePos.add(dx, dy, dz));
+                }
+            }
+        }
+        return positions;
+    }
+
+    public int countStorageBlocks(MinecraftServer server, UUID baseUuid) {
+        Optional<BaseRecord> matchingBase = bases.stream()
+                .filter(base -> base.baseUuid.equals(baseUuid))
+                .findFirst();
+        if (matchingBase.isEmpty()) {
+            return 0;
+        }
+
+        BaseRecord base = matchingBase.get();
+        ServerWorld world = server.getWorld(RegistryKey.of(RegistryKeys.WORLD, base.dimensionId));
+        if (world == null) {
+            return 0;
+        }
+
+        int count = 0;
+        for (BlockPos pos : scanBasePositions(base)) {
+            if (world.getBlockEntity(pos) instanceof Inventory) {
+                count++;
+            }
+        }
+        return count;
     }
 
     public static String formatPos(BlockPos pos) {
@@ -383,11 +802,19 @@ public class BaseData extends PersistentState {
             long gatheredMaterials,
             int queuedTasks,
             String stockSummary,
-            String assignmentSummary
+            String assignmentSummary,
+            List<BasePalView> storedPals,
+            List<AssignedPalView> assignedPals
     ) {
         public String corePositionText() {
             return formatPos(corePos);
         }
+    }
+
+    public record BasePalView(int slot, PalInstance pal, boolean deployed, boolean assigned, BaseWorkType workType) {
+    }
+
+    public record AssignedPalView(UUID palUuid, BaseWorkType workType) {
     }
 
     public record AssignResult(AssignStatus status, BaseView base, BaseWorkType workType) {
@@ -402,12 +829,35 @@ public class BaseData extends PersistentState {
         public static AssignResult noBaseNearby() {
             return new AssignResult(AssignStatus.NO_BASE_NEARBY, null, null);
         }
+
+        public static AssignResult invalidPal() {
+            return new AssignResult(AssignStatus.INVALID_PAL, null, null);
+        }
+
+        public static AssignResult notDeployed(BaseView base) {
+            return new AssignResult(AssignStatus.NOT_DEPLOYED, base, null);
+        }
     }
 
     public enum AssignStatus {
         ASSIGNED,
         ALREADY_ASSIGNED,
-        NO_BASE_NEARBY
+        NO_BASE_NEARBY,
+        INVALID_PAL,
+        NOT_DEPLOYED
+    }
+
+    public enum StoreResult {
+        STORED,
+        NO_BASE
+    }
+
+    public enum DeployResult {
+        DEPLOYED,
+        ALREADY_DEPLOYED,
+        NO_BASE,
+        INVALID_PAL,
+        SPAWN_FAILED
     }
 
     private static final class BaseRecord {
@@ -416,6 +866,8 @@ public class BaseData extends PersistentState {
         private final Identifier dimensionId;
         private final BlockPos corePos;
         private final int radius;
+        private final List<PalInstance> storedPals = new ArrayList<>();
+        private final List<DeployedPal> deployments = new ArrayList<>();
         private final List<AssignedPal> assignments = new ArrayList<>();
         private final List<BaseTask> taskQueue = new ArrayList<>();
         private final EnumMap<BaseWorkType, Long> stock = new EnumMap<>(BaseWorkType.class);
@@ -440,12 +892,18 @@ public class BaseData extends PersistentState {
                     totalStock(),
                     taskQueue.size(),
                     stockSummary(),
-                    assignmentSummary()
+                    assignmentSummary(),
+                    storedPalViews(),
+                    assignedPalViews()
             );
         }
 
         private boolean hasAssignment(UUID palUuid) {
             return assignments.stream().anyMatch(assignment -> assignment.palUuid.equals(palUuid));
+        }
+
+        private boolean hasDeployment(UUID palUuid) {
+            return deployments.stream().anyMatch(deployment -> deployment.palUuid.equals(palUuid));
         }
 
         private Optional<BaseTask> findTaskFor(BaseWorkType workType) {
@@ -462,9 +920,10 @@ public class BaseData extends PersistentState {
         private List<BaseWorkType> preferredWorkTypes() {
             List<BaseWorkType> workTypes = assignments.stream()
                     .map(assignment -> assignment.workType)
+                    .filter(workType -> workType != BaseWorkType.HAULING && workType != BaseWorkType.MANUFACTURING)
                     .distinct()
                     .toList();
-            return workTypes.isEmpty() ? List.of(BaseWorkType.HAULING) : workTypes;
+            return workTypes;
         }
 
         private void addStock(BaseWorkType workType, long amount) {
@@ -506,9 +965,49 @@ public class BaseData extends PersistentState {
             }
             return String.join(", ", entries);
         }
+
+        private List<BasePalView> storedPalViews() {
+            List<BasePalView> views = new ArrayList<>();
+            for (int i = 0; i < storedPals.size(); i++) {
+                PalInstance pal = storedPals.get(i);
+                Optional<AssignedPal> assignment = assignments.stream()
+                        .filter(assignedPal -> assignedPal.palUuid.equals(pal.instanceUuid()))
+                        .findFirst();
+                views.add(new BasePalView(
+                        i,
+                        pal,
+                        hasDeployment(pal.instanceUuid()),
+                        assignment.isPresent(),
+                        assignment.map(assignedPal -> assignedPal.workType).orElse(null)
+                ));
+            }
+            return List.copyOf(views);
+        }
+
+        private List<AssignedPalView> assignedPalViews() {
+            return assignments.stream()
+                    .map(assignment -> new AssignedPalView(assignment.palUuid, assignment.workType))
+                    .toList();
+        }
     }
 
-    private record AssignedPal(UUID palUuid, BaseWorkType workType) {
+    private static final class AssignedPal {
+        private final UUID palUuid;
+        private final BaseWorkType workType;
+
+        private AssignedPal(UUID palUuid, BaseWorkType workType) {
+            this.palUuid = palUuid;
+            this.workType = workType;
+        }
+    }
+
+    private static final class DeployedPal {
+        private final UUID palUuid;
+        private UUID entityUuid;
+
+        private DeployedPal(UUID palUuid) {
+            this.palUuid = palUuid;
+        }
     }
 
     private static final class BaseTask {
@@ -531,5 +1030,15 @@ public class BaseData extends PersistentState {
         return pals.stream()
                 .filter(pal -> pal.instanceUuid().equals(palUuid))
                 .findFirst();
+    }
+
+    private static void replacePalHealth(List<PalInstance> pals, UUID palUuid, float health) {
+        for (int i = 0; i < pals.size(); i++) {
+            PalInstance pal = pals.get(i);
+            if (pal.instanceUuid().equals(palUuid)) {
+                pals.set(i, pal.withHealth(health));
+                return;
+            }
+        }
     }
 }
