@@ -16,6 +16,8 @@ public final class PalCraftClientNetworking {
     public static final int ACTION_UNASSIGN_BASE = 6;
     public static final int ACTION_DEPLOY_BASE = 7;
     public static final int ACTION_RECALL_BASE = 8;
+    public static final int ACTION_STORE_PLAYER_PAL_BASE = 9;
+    public static final int ACTION_TAKE_BASE_PAL = 10;
 
     private PalCraftClientNetworking() {
     }
@@ -97,6 +99,22 @@ public final class PalCraftClientNetworking {
         buffer.writeVarInt(ACTION_RECALL_BASE);
         buffer.writeVarInt(-1);
         buffer.writeString(baseUuid + "|" + palUuid, 128);
+        ClientPlayNetworking.send(PalCraftNetworking.UI_ACTION, buffer);
+    }
+
+    public static void sendStorePlayerPalInBase(String baseUuid, int playerSlot) {
+        PacketByteBuf buffer = PacketByteBufs.create();
+        buffer.writeVarInt(ACTION_STORE_PLAYER_PAL_BASE);
+        buffer.writeVarInt(playerSlot);
+        buffer.writeString(baseUuid, 128);
+        ClientPlayNetworking.send(PalCraftNetworking.UI_ACTION, buffer);
+    }
+
+    public static void sendTakeBasePal(String baseUuid, int storageSlot) {
+        PacketByteBuf buffer = PacketByteBufs.create();
+        buffer.writeVarInt(ACTION_TAKE_BASE_PAL);
+        buffer.writeVarInt(storageSlot);
+        buffer.writeString(baseUuid, 128);
         ClientPlayNetworking.send(PalCraftNetworking.UI_ACTION, buffer);
     }
 }

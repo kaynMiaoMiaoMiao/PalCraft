@@ -190,6 +190,13 @@ public class PalCraftManagementScreen extends Screen {
             return;
         }
 
+        PalCraftClientState.UiState state = PalCraftClientState.latestState();
+        if (state.pals().isEmpty()) {
+            selectedSlot = -1;
+        } else if (selectedSlot < 0 || state.pals().stream().noneMatch(pal -> pal.slot() == selectedSlot)) {
+            selectedSlot = state.pals().get(0).slot();
+        }
+
         List<PalCraftClientState.BasePalSummary> visiblePals = visibleBasePals(base);
         if ((selectedBasePalSlot < 0 || visiblePals.stream().noneMatch(pal -> pal.slot() == selectedBasePalSlot)) && !visiblePals.isEmpty()) {
             selectedBasePalSlot = visiblePals.get(0).slot();
@@ -215,7 +222,7 @@ public class PalCraftManagementScreen extends Screen {
                 addWorkButtons(base, selectedPal, detailInnerX(panelX), panelY + BASE_CONTENT_TOP + 30);
             }
             if (selectedTab == BaseTab.PETS && selectedPal != null) {
-                addBasePetButtons(base, selectedPal, detailInnerX(panelX), panelY + 200, detailInnerWidth());
+                addBasePetButtons(base, selectedPal, detailInnerX(panelX), panelY + 184, detailInnerWidth());
             }
         }
     }
@@ -223,25 +230,67 @@ public class PalCraftManagementScreen extends Screen {
     private void addBasePetButtons(PalCraftClientState.BaseSummary base, PalCraftClientState.BasePalSummary selectedPal, int x, int y, int width) {
         String baseUuid = base.baseUuid();
         String palUuid = selectedPal.instanceUuid();
+        int halfWidth = (width - 8) / 2;
         if (selectedPal.deployed()) {
             addDrawableChild(ButtonWidget.builder(Text.translatable("screen.palcraft.recall_to_storage"), button ->
                             PalCraftClientNetworking.sendBaseRecall(baseUuid, palUuid))
-                    .dimensions(x, y, width, 18)
+                    .dimensions(x, y, halfWidth, 18)
                     .build());
         } else {
             ButtonWidget deployButton = ButtonWidget.builder(Text.translatable("screen.palcraft.deploy_to_base"), button ->
                             PalCraftClientNetworking.sendBaseDeploy(baseUuid, selectedPal.slot()))
-                    .dimensions(x, y, width, 18)
+                    .dimensions(x, y, halfWidth, 18)
                     .build();
             deployButton.active = selectedPal.health() > 0.0F;
             addDrawableChild(deployButton);
         }
+        ButtonWidget takeButton = ButtonWidget.builder(Text.translatable("screen.palcraft.take_to_player"), button ->
+                        PalCraftClientNetworking.sendTakeBasePal(baseUuid, selectedPal.slot()))
+                .dimensions(x + halfWidth + 8, y, halfWidth, 18)
+                .build();
+        takeButton.active = PalCraftClientState.latestState().pals().size() < PalCraftClientState.latestState().carryLimit();
+        addDrawableChild(takeButton);
+
         ButtonWidget unassignButton = ButtonWidget.builder(Text.translatable("screen.palcraft.unassign"), button ->
                         PalCraftClientNetworking.sendBaseUnassign(baseUuid, palUuid))
-                .dimensions(x, y + 24, width, 18)
+                .dimensions(x, y + 24, halfWidth, 18)
                 .build();
         unassignButton.active = selectedPal.assigned();
         addDrawableChild(unassignButton);
+
+        addCarriedSlotTransferButtons(baseUuid, x, y + 46, width);
+    }
+
+    private void addCarriedSlotTransferButtons(String baseUuid, int x, int y, int width) {
+        PalCraftClientState.UiState state = PalCraftClientState.latestState();
+        int slotWidth = 24;
+        int slotGap = 4;
+        for (int i = 0; i < state.carryLimit(); i++) {
+            PalCraftClientState.PalSummary pal = i < state.pals().size() ? state.pals().get(i) : null;
+            int slot = i;
+            ButtonWidget slotButton = ButtonWidget.builder(Text.literal(String.valueOf(i + 1)), button -> {
+                        if (pal != null) {
+                            selectedSlot = slot;
+                            rebuildWidgets();
+                        }
+                    })
+                    .dimensions(x + i * (slotWidth + slotGap), y, slotWidth, 18)
+                    .build();
+            slotButton.active = pal != null && selectedSlot != slot;
+            addDrawableChild(slotButton);
+        }
+
+        int storeX = x + state.carryLimit() * (slotWidth + slotGap) + 4;
+        ButtonWidget storeButton = ButtonWidget.builder(Text.translatable("screen.palcraft.store_in_base"), button -> {
+                    PalCraftClientState.PalSummary pal = selectedPal();
+                    if (pal != null) {
+                        PalCraftClientNetworking.sendStorePlayerPalInBase(baseUuid, pal.slot());
+                    }
+                })
+                .dimensions(storeX, y, Math.max(56, x + width - storeX), 18)
+                .build();
+        storeButton.active = selectedPal() != null;
+        addDrawableChild(storeButton);
     }
 
     private void addWorkButtons(PalCraftClientState.BaseSummary base, PalCraftClientState.BasePalSummary pal, int x, int y) {

@@ -119,6 +119,10 @@ public class SparkitEntity extends PathAwareEntity {
 
     @Override
     public boolean damage(DamageSource source, float amount) {
+        if (isCapturedPal() && isFriendlyDamage(source)) {
+            return false;
+        }
+
         float adjustedAmount = amount;
         if (isSummonedPal() && palDefense > 0.0F && amount > 1.0F) {
             adjustedAmount = Math.max(1.0F, amount - palDefense * 0.35F);
@@ -128,6 +132,10 @@ public class SparkitEntity extends PathAwareEntity {
 
     @Override
     public boolean tryAttack(Entity target) {
+        if (isFriendlyEntity(target)) {
+            return false;
+        }
+
         boolean attacked = super.tryAttack(target);
         if (attacked && target instanceof LivingEntity livingTarget && hasSkill(PalSkill.TACKLE) && tackleCooldownTicks <= 0) {
             float damage = 1.5F + palLevel * 0.35F;
@@ -141,7 +149,7 @@ public class SparkitEntity extends PathAwareEntity {
 
     @Override
     public boolean canTarget(LivingEntity target) {
-        return super.canTarget(target) && !isOwner(target) && (!isSummonedPal() || !isLowHealth());
+        return super.canTarget(target) && !isFriendlyEntity(target) && (!isSummonedPal() || !isLowHealth());
     }
 
     @Override
@@ -313,8 +321,20 @@ public class SparkitEntity extends PathAwareEntity {
                 && this.canTarget(target);
     }
 
-    private boolean isOwner(LivingEntity entity) {
-        return ownerUuid != null && entity != null && ownerUuid.equals(entity.getUuid());
+    private boolean isFriendlyDamage(DamageSource source) {
+        Entity attacker = source.getAttacker();
+        Entity sourceEntity = source.getSource();
+        return isFriendlyEntity(attacker) || (sourceEntity != attacker && isFriendlyEntity(sourceEntity));
+    }
+
+    private boolean isFriendlyEntity(Entity entity) {
+        if (ownerUuid == null || entity == null) {
+            return false;
+        }
+        if (ownerUuid.equals(entity.getUuid())) {
+            return true;
+        }
+        return entity instanceof SparkitEntity sparkitEntity && ownerUuid.equals(sparkitEntity.ownerUuid);
     }
 
     private boolean isLowHealth() {
@@ -387,7 +407,7 @@ public class SparkitEntity extends PathAwareEntity {
         addStatusEffect(new StatusEffectInstance(StatusEffects.RESISTANCE, 100, 0, false, true, true));
         selfRepairCooldownTicks = PalSkill.SELF_REPAIR.cooldownTicks();
         if (this.getWorld() instanceof ServerWorld serverWorld) {
-            serverWorld.spawnParticles(ParticleTypes.HEART, getX(), getBodyY(0.75D), getZ(), 5, 0.35D, 0.35D, 0.35D, 0.02D);
+            serverWorld.spawnParticles(particleFor(palElementType), getX(), getBodyY(0.75D), getZ(), 8, 0.35D, 0.35D, 0.35D, 0.02D);
         }
         sendSkillMessage("message.palcraft.skill.self_repair", null);
     }

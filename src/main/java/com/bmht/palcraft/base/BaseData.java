@@ -52,6 +52,8 @@ public class BaseData extends PersistentState {
     private static final int SCAN_Y_MIN = -4;
     private static final int SCAN_Y_MAX = 8;
     private static final int SCAN_STEPS_PER_WORK = 768;
+    private static final float STORAGE_HEAL_MIN = 4.0F;
+    private static final float STORAGE_HEAL_RATIO = 0.25F;
 
     private final List<BaseRecord> bases = new ArrayList<>();
 
@@ -117,6 +119,67 @@ public class BaseData extends PersistentState {
         base.get().storedPals.add(palInstance);
         markDirty();
         return StoreResult.STORED;
+    }
+
+    public boolean storePlayerPal(ServerPlayerEntity player, UUID baseUuid, int playerSlot) {
+        Optional<BaseRecord> matchingBase = findOwnedBase(player.getUuid(), baseUuid);
+        if (matchingBase.isEmpty()) {
+            return false;
+        }
+
+        List<PalInstance> carriedPals = PlayerPalData.get(player.getServer()).getStoredPals(player.getUuid());
+        if (playerSlot < 0 || playerSlot >= carriedPals.size()) {
+            return false;
+        }
+
+        BaseRecord base = matchingBase.get();
+        PalInstance candidate = carriedPals.get(playerSlot);
+        if (base.storedPals.stream().anyMatch(pal -> pal.instanceUuid().equals(candidate.instanceUuid()))) {
+            return false;
+        }
+
+        Optional<PalInstance> removedPal = PlayerPalData.get(player.getServer()).takeStoredPal(player, playerSlot);
+        if (removedPal.isEmpty()) {
+            return false;
+        }
+
+        base.storedPals.add(removedPal.get());
+        markDirty();
+        return true;
+    }
+
+    public boolean takeStoredPalToPlayer(ServerPlayerEntity player, UUID baseUuid, int storageSlot) {
+        Optional<BaseRecord> matchingBase = findOwnedBase(player.getUuid(), baseUuid);
+        if (matchingBase.isEmpty()) {
+            return false;
+        }
+
+        PlayerPalData palData = PlayerPalData.get(player.getServer());
+        if (!palData.hasCarrySpace(player.getUuid())) {
+            return false;
+        }
+
+        BaseRecord base = matchingBase.get();
+        if (storageSlot < 0 || storageSlot >= base.storedPals.size()) {
+            return false;
+        }
+
+        PalInstance pal = base.storedPals.get(storageSlot);
+        base.deployments.stream()
+                .filter(deployment -> deployment.palUuid.equals(pal.instanceUuid()))
+                .findFirst()
+                .ifPresent(deployment -> discardWorkerEntity(player.getServer(), base, deployment));
+        base.deployments.removeIf(deployment -> deployment.palUuid.equals(pal.instanceUuid()));
+        base.assignments.removeIf(assignment -> assignment.palUuid.equals(pal.instanceUuid()));
+
+        PalInstance removedPal = base.storedPals.remove(storageSlot);
+        if (!palData.addStoredPal(player.getUuid(), removedPal)) {
+            base.storedPals.add(storageSlot, removedPal);
+            return false;
+        }
+
+        markDirty();
+        return true;
     }
 
     public AssignResult assignStoredPal(UUID ownerUuid, UUID baseUuid, int storageSlot, BaseWorkType requestedWorkType) {
@@ -251,6 +314,8 @@ public class BaseData extends PersistentState {
         PlayerPalData palData = PlayerPalData.get(server);
         boolean changed = false;
         for (BaseRecord base : bases) {
+            changed |= tickStoredPalRecovery(base);
+
             if (base.deployments.isEmpty() && base.assignments.isEmpty()) {
                 continue;
             }
@@ -306,6 +371,22 @@ public class BaseData extends PersistentState {
         if (changed) {
             markDirty();
         }
+    }
+
+    private boolean tickStoredPalRecovery(BaseRecord base) {
+        boolean changed = false;
+        for (int i = 0; i < base.storedPals.size(); i++) {
+            PalInstance pal = base.storedPals.get(i);
+            if (base.hasDeployment(pal.instanceUuid()) || pal.health() >= pal.maxHealth()) {
+                continue;
+            }
+
+            float healAmount = Math.max(STORAGE_HEAL_MIN, pal.maxHealth() * STORAGE_HEAL_RATIO);
+            float health = Math.min(pal.maxHealth(), Math.max(0.0F, pal.health()) + healAmount);
+            base.storedPals.set(i, pal.withHealth(health));
+            changed = true;
+        }
+        return changed;
     }
 
     private boolean enqueueDiscoveredTasks(BaseRecord base, ServerWorld world, int serverTicks) {
@@ -727,6 +808,13 @@ public class BaseData extends PersistentState {
                 .filter(base -> base.dimensionId.equals(dimensionId))
                 .filter(base -> base.corePos.getSquaredDistance(playerPos) <= maxDistanceSquared)
                 .min(Comparator.comparingDouble(base -> base.corePos.getSquaredDistance(playerPos)));
+    }
+
+    private Optional<BaseRecord> findOwnedBase(UUID ownerUuid, UUID baseUuid) {
+        return bases.stream()
+                .filter(base -> base.ownerUuid.equals(ownerUuid))
+                .filter(base -> base.baseUuid.equals(baseUuid))
+                .findFirst();
     }
 
     private Optional<BaseRecord> findBestStorageBase(ServerPlayerEntity player) {

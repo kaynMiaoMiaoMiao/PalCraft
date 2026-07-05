@@ -32,6 +32,8 @@ public final class PalCraftNetworking {
     private static final int ACTION_UNASSIGN_BASE = 6;
     private static final int ACTION_DEPLOY_BASE = 7;
     private static final int ACTION_RECALL_BASE = 8;
+    private static final int ACTION_STORE_PLAYER_PAL_BASE = 9;
+    private static final int ACTION_TAKE_BASE_PAL = 10;
 
     private PalCraftNetworking() {
     }
@@ -121,6 +123,14 @@ public final class PalCraftNetworking {
                 UUID palUuid = UUID.fromString(parts[1]);
                 BaseData.get(player.getServer()).recallDeployedPal(player.getServer(), player.getUuid(), baseUuid, palUuid);
             }
+        }
+        if (action == ACTION_STORE_PLAYER_PAL_BASE) {
+            UUID baseUuid = UUID.fromString(value);
+            BaseData.get(player.getServer()).storePlayerPal(player, baseUuid, slot);
+        }
+        if (action == ACTION_TAKE_BASE_PAL) {
+            UUID baseUuid = UUID.fromString(value);
+            BaseData.get(player.getServer()).takeStoredPalToPlayer(player, baseUuid, slot);
         }
     }
 

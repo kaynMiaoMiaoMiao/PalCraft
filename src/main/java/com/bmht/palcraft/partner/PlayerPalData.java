@@ -54,6 +54,48 @@ public class PlayerPalData extends PersistentState {
         return List.copyOf(getRecord(playerUuid).storedPals);
     }
 
+    public boolean hasCarrySpace(UUID playerUuid) {
+        return getRecord(playerUuid).storedPals.size() < MAX_CARRIED_PALS;
+    }
+
+    public boolean addStoredPal(UUID playerUuid, PalInstance palInstance) {
+        PlayerRecord record = getRecord(playerUuid);
+        if (record.storedPals.size() >= MAX_CARRIED_PALS) {
+            return false;
+        }
+
+        record.storedPals.add(palInstance);
+        markDirty();
+        return true;
+    }
+
+    public Optional<PalInstance> takeStoredPal(ServerPlayerEntity player, int slot) {
+        PlayerRecord record = getRecord(player.getUuid());
+        if (slot < 0 || slot >= record.storedPals.size()) {
+            return Optional.empty();
+        }
+
+        if (slot == record.activeSlot) {
+            if (record.activeEntityUuid != null) {
+                findEntity(player.getServer(), record.activeEntityUuid).ifPresent(entity -> {
+                    if (entity instanceof LivingEntity livingEntity) {
+                        PalInstance current = record.storedPals.get(slot);
+                        record.storedPals.set(slot, current.withHealth(livingEntity.getHealth()));
+                    }
+                    entity.discard();
+                });
+            }
+            record.activeSlot = -1;
+            record.activeEntityUuid = null;
+        } else if (record.activeSlot > slot) {
+            record.activeSlot--;
+        }
+
+        PalInstance palInstance = record.storedPals.remove(slot);
+        markDirty();
+        return Optional.of(palInstance);
+    }
+
     public int getActiveSlot(UUID playerUuid) {
         return getRecord(playerUuid).activeSlot;
     }
