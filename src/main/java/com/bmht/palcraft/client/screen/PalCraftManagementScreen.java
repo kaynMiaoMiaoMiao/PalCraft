@@ -310,7 +310,7 @@ public class PalCraftManagementScreen extends Screen {
 
         int healthColor = pal.fainted() ? 0xFF5555 : pal.health() <= pal.maxHealth() * 0.35F ? 0xFFFF55 : 0x55FF55;
         context.drawTextWithShadow(textRenderer, displayName(pal) + (pal.active() ? " " + I18n.translate("screen.palcraft.active_suffix") : ""), x, y, 0x55FFFF);
-        context.drawTextWithShadow(textRenderer, I18n.translate("screen.palcraft.level_value", pal.level()) + "  " + localizedElement(pal.element()), x, y + 14, 0xFFFF55);
+        context.drawTextWithShadow(textRenderer, I18n.translate("screen.palcraft.level_value", pal.level()) + "  " + localizedElement(pal.element()) + "  " + I18n.translate("screen.palcraft.talent_value", twoDecimals(pal.talent())), x, y + 14, 0xFFFF55);
         drawBar(context, x, y + 30, 156, 6, pal.experience(), pal.nextExperience(), 0xFF23343A, COLOR_GOOD);
         context.drawTextWithShadow(textRenderer, I18n.translate("screen.palcraft.exp_value", pal.experience(), pal.nextExperience()), x, y + 40, 0xA8EFA0);
         drawBar(context, x, y + 58, 156, 6, Math.max(0, pal.health()), pal.maxHealth(), 0xFF3A2222, healthColor | 0xFF000000);
@@ -322,7 +322,7 @@ public class PalCraftManagementScreen extends Screen {
     private void renderBasePalDetails(DrawContext context, PalCraftClientState.BasePalSummary pal, int x, int y) {
         int healthColor = pal.health() <= 0.0F ? 0xFF5555 : pal.health() <= pal.maxHealth() * 0.35F ? 0xFFFF55 : 0x55FF55;
         context.drawTextWithShadow(textRenderer, displayName(pal), x, y, 0x55FFFF);
-        context.drawTextWithShadow(textRenderer, I18n.translate("screen.palcraft.level_value", pal.level()) + "  " + localizedElement(pal.element()), x, y + 14, 0xFFFF55);
+        context.drawTextWithShadow(textRenderer, I18n.translate("screen.palcraft.level_value", pal.level()) + "  " + localizedElement(pal.element()) + "  " + I18n.translate("screen.palcraft.talent_value", twoDecimals(pal.talent())), x, y + 14, 0xFFFF55);
         drawBar(context, x, y + 30, 156, 6, Math.max(0, pal.health()), pal.maxHealth(), 0xFF3A2222, healthColor | 0xFF000000);
         context.drawTextWithShadow(textRenderer, I18n.translate("screen.palcraft.hp_value", Math.round(pal.health()), Math.round(pal.maxHealth())), x, y + 40, healthColor);
         String status = pal.assigned() ? I18n.translate("work.palcraft." + pal.workType()) : I18n.translate("screen.palcraft.unassigned");
@@ -369,6 +369,10 @@ public class PalCraftManagementScreen extends Screen {
 
     private static String oneDecimal(float value) {
         return String.format(java.util.Locale.ROOT, "%.1f", value);
+    }
+
+    private static String twoDecimals(double value) {
+        return String.format(java.util.Locale.ROOT, "%.2f", value);
     }
 
     private void drawBar(DrawContext context, int x, int y, int width, int height, float value, float maxValue, int backgroundColor, int fillColor) {

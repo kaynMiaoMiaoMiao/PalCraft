@@ -2,7 +2,31 @@
   "replace": false,
   "values": [
     {
+      "id": "palcraft:flameling",
+      "required": false
+    },
+    {
+      "id": "palcraft:water_sprite",
+      "required": false
+    },
+    {
       "id": "palcraft:sparkit",
+      "required": false
+    },
+    {
+      "id": "palcraft:wind_drake",
+      "required": false
+    },
+    {
+      "id": "palcraft:treelet",
+      "required": false
+    },
+    {
+      "id": "palcraft:icelime",
+      "required": false
+    },
+    {
+      "id": "palcraft:mudloba",
       "required": false
     }
   ]

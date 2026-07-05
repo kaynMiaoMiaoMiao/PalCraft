@@ -31,7 +31,25 @@ public enum BaseWorkType implements BaseWork {
         if (pal.level() >= 3) {
             score++;
         }
-        if (pal.elementType() == PalElementType.ELECTRIC && (this == MANUFACTURING || this == MINING)) {
+        if (pal.elementType() == PalElementType.THUNDER && (this == MANUFACTURING || this == MINING)) {
+            score += 2;
+        }
+        if (pal.elementType() == PalElementType.FIRE && this == MANUFACTURING) {
+            score += 2;
+        }
+        if (pal.elementType() == PalElementType.WATER && (this == PLANTING || this == HAULING)) {
+            score += 2;
+        }
+        if (pal.elementType() == PalElementType.WIND && this == HAULING) {
+            score += 2;
+        }
+        if (pal.elementType() == PalElementType.WOOD && (this == PLANTING || this == LOGGING)) {
+            score += 2;
+        }
+        if (pal.elementType() == PalElementType.ICE && this == HAULING) {
+            score += 1;
+        }
+        if (pal.elementType() == PalElementType.EARTH && this == MINING) {
             score += 2;
         }
         if (this == HAULING) {

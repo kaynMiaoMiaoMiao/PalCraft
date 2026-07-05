@@ -194,9 +194,9 @@ public class PlayerPalData extends PersistentState {
             leveledUp = true;
         }
 
-        float maxHealth = PalInstance.maxHealthForLevel(level);
-        float attack = PalInstance.attackForLevel(level);
-        float defense = PalInstance.defenseForLevel(level);
+        float maxHealth = PalInstance.maxHealthForLevel(current.speciesId(), level, current.talent());
+        float attack = PalInstance.attackForLevel(current.speciesId(), level, current.talent());
+        float defense = PalInstance.defenseForLevel(current.speciesId(), level, current.talent());
         float health = MathHelper.clamp(palEntity.getHealth(), 0.0F, maxHealth);
         if (leveledUp) {
             health = Math.min(maxHealth, health + Math.max(2.0F, maxHealth - current.maxHealth()));

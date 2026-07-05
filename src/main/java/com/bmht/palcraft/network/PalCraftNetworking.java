@@ -141,6 +141,7 @@ public final class PalCraftNetworking {
             palNbt.putString("SpeciesTranslationKey", Registries.ENTITY_TYPE.get(pal.speciesId()).getTranslationKey());
             palNbt.putString("SpeciesId", pal.speciesId().toString());
             palNbt.putString("CustomName", pal.customName());
+            palNbt.putDouble("Talent", pal.talent());
             palNbt.putInt("Level", pal.level());
             palNbt.putLong("Experience", pal.experience());
             palNbt.putLong("NextExperience", PalInstance.experienceToNextLevel(pal.level()));
@@ -181,6 +182,7 @@ public final class PalCraftNetworking {
                 storedPalNbt.putString("SpeciesName", Registries.ENTITY_TYPE.get(pal.speciesId()).getName().getString());
                 storedPalNbt.putString("SpeciesTranslationKey", Registries.ENTITY_TYPE.get(pal.speciesId()).getTranslationKey());
                 storedPalNbt.putString("CustomName", pal.customName());
+                storedPalNbt.putDouble("Talent", pal.talent());
                 storedPalNbt.putInt("Level", pal.level());
                 storedPalNbt.putFloat("Health", pal.health());
                 storedPalNbt.putFloat("MaxHealth", pal.maxHealth());

@@ -89,6 +89,8 @@ public final class PalCraftCommands {
                 .append(speciesName.copy().formatted(Formatting.AQUA))
                 .append(Text.literal("  Lv.").formatted(Formatting.DARK_GRAY))
                 .append(Text.literal(String.valueOf(pal.level())).formatted(Formatting.YELLOW))
+                .append(Text.literal("  Talent ").formatted(Formatting.DARK_GRAY))
+                .append(Text.literal(String.format(java.util.Locale.ROOT, "%.2f", pal.talent())).formatted(Formatting.LIGHT_PURPLE))
                 .append(Text.literal("  EXP ").formatted(Formatting.DARK_GRAY))
                 .append(Text.literal(pal.experience() + "/" + nextLevelExperience).formatted(Formatting.GREEN))
                 .append(Text.literal("  HP ").formatted(Formatting.DARK_GRAY))

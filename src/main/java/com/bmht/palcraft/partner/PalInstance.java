@@ -1,7 +1,6 @@
 package com.bmht.palcraft.partner;
 
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
@@ -9,6 +8,7 @@ import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtString;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.MathHelper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +19,7 @@ public record PalInstance(
         Identifier speciesId,
         UUID ownerUuid,
         String customName,
+        double talent,
         int level,
         long experience,
         float health,
@@ -29,32 +30,34 @@ public record PalInstance(
         List<PalSkill> skills,
         long capturedGameTime
 ) {
-    private static final float BASE_SPARKIT_HEALTH = 16.0F;
-    private static final float BASE_SPARKIT_ATTACK = 3.0F;
-    private static final float BASE_SPARKIT_DEFENSE = 0.0F;
-
     public PalInstance {
+        talent = normalizeTalent(talent);
         skills = List.copyOf(skills);
     }
 
     public static PalInstance fromCapturedEntity(LivingEntity entity, PlayerEntity owner) {
+        Identifier speciesId = Registries.ENTITY_TYPE.getId(entity.getType());
+        PalSpecies species = PalSpecies.fromId(speciesId);
         String name = entity.hasCustomName() ? entity.getName().getString() : "";
-        float maxHealth = entity.getMaxHealth();
-        float attack = (float) entity.getAttributeValue(EntityAttributes.GENERIC_ATTACK_DAMAGE);
+        double talent = randomTalent(entity.getRandom().nextDouble());
+        float maxHealth = maxHealthForLevel(speciesId, 1, talent);
+        float healthRatio = entity.getMaxHealth() <= 0.0F ? 1.0F : entity.getHealth() / entity.getMaxHealth();
+        float health = MathHelper.clamp(maxHealth * healthRatio, 1.0F, maxHealth);
 
         return new PalInstance(
                 UUID.randomUUID(),
-                Registries.ENTITY_TYPE.getId(entity.getType()),
+                speciesId,
                 owner.getUuid(),
                 name,
+                talent,
                 1,
                 0L,
-                entity.getHealth(),
+                health,
                 maxHealth,
-                attack,
-                BASE_SPARKIT_DEFENSE,
-                defaultElementType(Registries.ENTITY_TYPE.getId(entity.getType())),
-                defaultSkills(Registries.ENTITY_TYPE.getId(entity.getType())),
+                attackForLevel(speciesId, 1, talent),
+                defenseForLevel(speciesId, 1, talent),
+                species.elementType(),
+                species.defaultSkills(),
                 entity.getWorld().getTime()
         );
     }
@@ -65,6 +68,7 @@ public record PalInstance(
                 speciesId,
                 ownerUuid,
                 customName,
+                talent,
                 level,
                 experience,
                 health,
@@ -83,6 +87,7 @@ public record PalInstance(
                 speciesId,
                 ownerUuid,
                 customName,
+                talent,
                 level,
                 experience,
                 health,
@@ -101,6 +106,7 @@ public record PalInstance(
                 speciesId,
                 ownerUuid,
                 customName,
+                talent,
                 level,
                 experience,
                 health,
@@ -118,15 +124,35 @@ public record PalInstance(
     }
 
     public static float maxHealthForLevel(int level) {
-        return BASE_SPARKIT_HEALTH + (Math.max(1, level) - 1) * 2.0F;
+        return maxHealthForLevel(PalSpecies.SPARKIT.id(), level, 50.0D);
     }
 
     public static float attackForLevel(int level) {
-        return BASE_SPARKIT_ATTACK + (Math.max(1, level) - 1) * 0.6F;
+        return attackForLevel(PalSpecies.SPARKIT.id(), level, 50.0D);
     }
 
     public static float defenseForLevel(int level) {
-        return BASE_SPARKIT_DEFENSE + (Math.max(1, level) - 1) * 0.25F;
+        return defenseForLevel(PalSpecies.SPARKIT.id(), level, 50.0D);
+    }
+
+    public static float maxHealthForLevel(Identifier speciesId, int level, double talent) {
+        return PalSpecies.fromId(speciesId).maxHealthForLevel(level, talent);
+    }
+
+    public static float attackForLevel(Identifier speciesId, int level, double talent) {
+        return PalSpecies.fromId(speciesId).attackForLevel(level, talent);
+    }
+
+    public static float defenseForLevel(Identifier speciesId, int level, double talent) {
+        return PalSpecies.fromId(speciesId).defenseForLevel(level, talent);
+    }
+
+    public static double normalizeTalent(double talent) {
+        return Math.round(MathHelper.clamp(talent, 0.0D, 100.0D) * 100.0D) / 100.0D;
+    }
+
+    private static double randomTalent(double randomValue) {
+        return normalizeTalent(randomValue * 100.0D);
     }
 
     public NbtCompound writeNbt() {
@@ -135,6 +161,7 @@ public record PalInstance(
         nbt.putString("SpeciesId", speciesId.toString());
         nbt.putString("OwnerUuid", ownerUuid.toString());
         nbt.putString("CustomName", customName);
+        nbt.putDouble("Talent", talent);
         nbt.putInt("Level", level);
         nbt.putLong("Experience", experience);
         nbt.putFloat("Health", health);
@@ -154,26 +181,28 @@ public record PalInstance(
     public static PalInstance fromNbt(NbtCompound nbt) {
         Identifier speciesId = Identifier.tryParse(nbt.getString("SpeciesId"));
         if (speciesId == null) {
-            speciesId = new Identifier("minecraft", "pig");
+            speciesId = PalSpecies.SPARKIT.id();
         }
 
         int level = Math.max(1, nbt.getInt("Level"));
+        double talent = nbt.contains("Talent") ? normalizeTalent(nbt.getDouble("Talent")) : 50.0D;
         long experience = nbt.contains("Experience") ? nbt.getLong("Experience") : 0L;
-        float maxHealth = nbt.contains("MaxHealth") ? nbt.getFloat("MaxHealth") : maxHealthForLevel(level);
-        float attack = nbt.contains("Attack") ? nbt.getFloat("Attack") : attackForLevel(level);
-        float defense = nbt.contains("Defense") ? nbt.getFloat("Defense") : defenseForLevel(level);
+        float maxHealth = nbt.contains("MaxHealth") ? nbt.getFloat("MaxHealth") : maxHealthForLevel(speciesId, level, talent);
+        float attack = nbt.contains("Attack") ? nbt.getFloat("Attack") : attackForLevel(speciesId, level, talent);
+        float defense = nbt.contains("Defense") ? nbt.getFloat("Defense") : defenseForLevel(speciesId, level, talent);
         PalElementType elementType = nbt.contains("ElementType")
                 ? PalElementType.fromId(nbt.getString("ElementType"))
-                : defaultElementType(speciesId);
+                : PalSpecies.fromId(speciesId).elementType();
         List<PalSkill> skills = nbt.contains("Skills", NbtElement.LIST_TYPE)
                 ? readSkills(nbt.getList("Skills", NbtElement.STRING_TYPE))
-                : defaultSkills(speciesId);
+                : PalSpecies.fromId(speciesId).defaultSkills();
 
         return new PalInstance(
                 UUID.fromString(nbt.getString("InstanceUuid")),
                 speciesId,
                 UUID.fromString(nbt.getString("OwnerUuid")),
                 nbt.getString("CustomName"),
+                talent,
                 level,
                 experience,
                 nbt.getFloat("Health"),
@@ -184,20 +213,6 @@ public record PalInstance(
                 skills,
                 nbt.getLong("CapturedGameTime")
         );
-    }
-
-    private static PalElementType defaultElementType(Identifier speciesId) {
-        if ("palcraft".equals(speciesId.getNamespace()) && "sparkit".equals(speciesId.getPath())) {
-            return PalElementType.ELECTRIC;
-        }
-        return PalElementType.NEUTRAL;
-    }
-
-    private static List<PalSkill> defaultSkills(Identifier speciesId) {
-        if ("palcraft".equals(speciesId.getNamespace()) && "sparkit".equals(speciesId.getPath())) {
-            return List.of(PalSkill.TACKLE, PalSkill.ENERGY_BOLT, PalSkill.SELF_REPAIR);
-        }
-        return List.of(PalSkill.TACKLE);
     }
 
     private static List<PalSkill> readSkills(NbtList skillList) {

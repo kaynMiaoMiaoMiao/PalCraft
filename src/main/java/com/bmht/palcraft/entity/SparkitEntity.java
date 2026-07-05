@@ -22,7 +22,9 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.mob.PathAwareEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.particle.ParticleEffect;
 import net.minecraft.particle.ParticleTypes;
+import net.minecraft.registry.Registries;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -36,8 +38,10 @@ import net.minecraft.world.ServerWorldAccess;
 import net.minecraft.world.World;
 
 import com.bmht.palcraft.base.BaseData;
+import com.bmht.palcraft.partner.PalElementType;
 import com.bmht.palcraft.partner.PalInstance;
 import com.bmht.palcraft.partner.PalSkill;
+import com.bmht.palcraft.partner.PalSpecies;
 import com.bmht.palcraft.partner.PlayerPalData;
 
 import java.util.EnumSet;
@@ -66,9 +70,10 @@ public class SparkitEntity extends PathAwareEntity {
     private int palLevel = 1;
     private float palAttack = 3.0F;
     private float palDefense;
+    private PalElementType palElementType = PalElementType.THUNDER;
     private EnumSet<PalSkill> skills = EnumSet.noneOf(PalSkill.class);
     private int tackleCooldownTicks;
-    private int energyBoltCooldownTicks;
+    private int rangedSkillCooldownTicks;
     private int selfRepairCooldownTicks;
 
     public SparkitEntity(EntityType<? extends SparkitEntity> entityType, World world) {
@@ -222,6 +227,7 @@ public class SparkitEntity extends PathAwareEntity {
         palLevel = palInstance.level();
         palAttack = palInstance.attack();
         palDefense = palInstance.defense();
+        palElementType = palInstance.elementType();
         skills = palInstance.skills().isEmpty()
                 ? EnumSet.noneOf(PalSkill.class)
                 : EnumSet.copyOf(palInstance.skills());
@@ -240,6 +246,20 @@ public class SparkitEntity extends PathAwareEntity {
         } else {
             setHealth(Math.min(getHealth(), getMaxHealth()));
         }
+    }
+
+    public PalElementType getPalElementType() {
+        if (isCapturedPal()) {
+            return palElementType;
+        }
+        return PalSpecies.fromId(Registries.ENTITY_TYPE.getId(getType())).elementType();
+    }
+
+    private static PalElementType elementTypeOf(LivingEntity entity) {
+        if (entity instanceof SparkitEntity sparkitEntity) {
+            return sparkitEntity.getPalElementType();
+        }
+        return PalElementType.NEUTRAL;
     }
 
     private ServerPlayerEntity getOwner() {
@@ -305,8 +325,8 @@ public class SparkitEntity extends PathAwareEntity {
         if (tackleCooldownTicks > 0) {
             tackleCooldownTicks--;
         }
-        if (energyBoltCooldownTicks > 0) {
-            energyBoltCooldownTicks--;
+        if (rangedSkillCooldownTicks > 0) {
+            rangedSkillCooldownTicks--;
         }
         if (selfRepairCooldownTicks > 0) {
             selfRepairCooldownTicks--;
@@ -315,17 +335,18 @@ public class SparkitEntity extends PathAwareEntity {
 
     private void tickSummonedSkills() {
         tryUseSelfRepair();
-        tryUseEnergyBolt();
+        tryUseRangedSkill();
     }
 
     private boolean hasSkill(PalSkill skill) {
         return skills.contains(skill);
     }
 
-    private void tryUseEnergyBolt() {
+    private void tryUseRangedSkill() {
         LivingEntity target = getTarget();
-        if (!hasSkill(PalSkill.ENERGY_BOLT)
-                || energyBoltCooldownTicks > 0
+        PalSkill skill = selectRangedSkill();
+        if (skill == null
+                || rangedSkillCooldownTicks > 0
                 || target == null
                 || !target.isAlive()
                 || target.getWorld() != this.getWorld()) {
@@ -337,11 +358,21 @@ public class SparkitEntity extends PathAwareEntity {
             return;
         }
 
-        float damage = 2.5F + palLevel * 0.45F + palAttack * 0.25F;
+        float damage = (2.5F + palLevel * 0.45F + palAttack * 0.25F)
+                * skill.elementType().damageMultiplierAgainst(elementTypeOf(target));
         target.damage(this.getDamageSources().mobAttack(this), damage);
-        energyBoltCooldownTicks = PalSkill.ENERGY_BOLT.cooldownTicks();
-        spawnLineParticles(target);
-        sendSkillMessage("message.palcraft.skill.energy_bolt", target);
+        rangedSkillCooldownTicks = skill.cooldownTicks();
+        spawnLineParticles(target, skill.elementType());
+        sendSkillMessage("message.palcraft.skill." + skill.id(), target);
+    }
+
+    private PalSkill selectRangedSkill() {
+        for (PalSkill skill : skills) {
+            if (skill.isRangedAttack()) {
+                return skill;
+            }
+        }
+        return null;
     }
 
     private void tryUseSelfRepair() {
@@ -361,7 +392,7 @@ public class SparkitEntity extends PathAwareEntity {
         sendSkillMessage("message.palcraft.skill.self_repair", null);
     }
 
-    private void spawnLineParticles(LivingEntity target) {
+    private void spawnLineParticles(LivingEntity target, PalElementType elementType) {
         if (!(this.getWorld() instanceof ServerWorld serverWorld)) {
             return;
         }
@@ -375,7 +406,7 @@ public class SparkitEntity extends PathAwareEntity {
         for (int i = 1; i <= 8; i++) {
             double progress = i / 8.0D;
             serverWorld.spawnParticles(
-                    ParticleTypes.ELECTRIC_SPARK,
+                    particleFor(elementType),
                     startX + (endX - startX) * progress,
                     startY + (endY - startY) * progress,
                     startZ + (endZ - startZ) * progress,
@@ -388,7 +419,21 @@ public class SparkitEntity extends PathAwareEntity {
         }
     }
 
-    private void spawnBurstParticles(net.minecraft.particle.ParticleEffect particleEffect, LivingEntity target, int count) {
+    private ParticleEffect particleFor(PalElementType elementType) {
+        return switch (elementType) {
+            case FIRE -> ParticleTypes.FLAME;
+            case WATER -> ParticleTypes.SPLASH;
+            case THUNDER -> ParticleTypes.ELECTRIC_SPARK;
+            case WIND -> ParticleTypes.CLOUD;
+            case WOOD -> ParticleTypes.HAPPY_VILLAGER;
+            case ICE -> ParticleTypes.SNOWFLAKE;
+            case EARTH -> ParticleTypes.CRIT;
+            case DRAGON -> ParticleTypes.DRAGON_BREATH;
+            case NEUTRAL -> ParticleTypes.CRIT;
+        };
+    }
+
+    private void spawnBurstParticles(ParticleEffect particleEffect, LivingEntity target, int count) {
         if (this.getWorld() instanceof ServerWorld serverWorld) {
             serverWorld.spawnParticles(particleEffect, target.getX(), target.getBodyY(0.5D), target.getZ(), count, 0.25D, 0.25D, 0.25D, 0.05D);
         }
