@@ -44,9 +44,7 @@ public final class PalCraftCommands {
                                                 ))
                                                 .then(literal("mining").executes(context -> assignPalToBase(context.getSource(), IntegerArgumentType.getInteger(context, "slot"), BaseWorkType.MINING)))
                                                 .then(literal("logging").executes(context -> assignPalToBase(context.getSource(), IntegerArgumentType.getInteger(context, "slot"), BaseWorkType.LOGGING)))
-                                                .then(literal("planting").executes(context -> assignPalToBase(context.getSource(), IntegerArgumentType.getInteger(context, "slot"), BaseWorkType.PLANTING)))
-                                                .then(literal("hauling").executes(context -> assignPalToBase(context.getSource(), IntegerArgumentType.getInteger(context, "slot"), BaseWorkType.HAULING)))
-                                                .then(literal("manufacturing").executes(context -> assignPalToBase(context.getSource(), IntegerArgumentType.getInteger(context, "slot"), BaseWorkType.MANUFACTURING))))))
+                                                .then(literal("planting").executes(context -> assignPalToBase(context.getSource(), IntegerArgumentType.getInteger(context, "slot"), BaseWorkType.PLANTING))))))
         ));
     }
 

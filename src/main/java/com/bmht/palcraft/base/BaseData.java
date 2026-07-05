@@ -204,7 +204,9 @@ public class BaseData extends PersistentState {
             return AssignResult.alreadyAssigned(base.toView());
         }
 
-        BaseWorkType workType = requestedWorkType == null ? BaseWorkType.bestFor(pal) : requestedWorkType;
+        BaseWorkType workType = requestedWorkType == null || !requestedWorkType.isAssignable()
+                ? BaseWorkType.bestFor(pal)
+                : requestedWorkType;
         base.assignments.add(new AssignedPal(pal.instanceUuid(), workType));
         markDirty();
         return AssignResult.assigned(base.toView(), workType);
@@ -298,7 +300,9 @@ public class BaseData extends PersistentState {
         }
 
         BaseRecord base = nearestBase.get();
-        BaseWorkType workType = requestedWorkType == null ? BaseWorkType.bestFor(palInstance) : requestedWorkType;
+        BaseWorkType workType = requestedWorkType == null || !requestedWorkType.isAssignable()
+                ? BaseWorkType.bestFor(palInstance)
+                : requestedWorkType;
         if (base.storedPals.stream().noneMatch(storedPal -> storedPal.instanceUuid().equals(palInstance.instanceUuid()))) {
             base.storedPals.add(palInstance);
         }
@@ -742,6 +746,9 @@ public class BaseData extends PersistentState {
                 BaseWorkType workType = palNbt.contains("WorkType")
                         ? BaseWorkType.fromId(palNbt.getString("WorkType"))
                         : BaseWorkType.HAULING;
+                if (!workType.isAssignable()) {
+                    continue;
+                }
                 AssignedPal assignment = new AssignedPal(palNbt.getUuid("PalUuid"), workType);
                 record.assignments.add(assignment);
 
@@ -784,9 +791,13 @@ public class BaseData extends PersistentState {
             NbtList taskList = baseNbt.getList("Tasks", NbtElement.COMPOUND_TYPE);
             for (NbtElement taskElement : taskList) {
                 NbtCompound taskNbt = (NbtCompound) taskElement;
+                BaseWorkType workType = BaseWorkType.fromId(taskNbt.getString("WorkType"));
+                if (!workType.isAssignable()) {
+                    continue;
+                }
                 record.taskQueue.add(new BaseTask(
                         taskNbt.getUuid("TaskUuid"),
-                        BaseWorkType.fromId(taskNbt.getString("WorkType")),
+                        workType,
                         taskNbt.getInt("Progress"),
                         taskNbt.getInt("RequiredWork"),
                         taskNbt.contains("TargetX")
@@ -1008,7 +1019,7 @@ public class BaseData extends PersistentState {
         private List<BaseWorkType> preferredWorkTypes() {
             List<BaseWorkType> workTypes = assignments.stream()
                     .map(assignment -> assignment.workType)
-                    .filter(workType -> workType != BaseWorkType.HAULING && workType != BaseWorkType.MANUFACTURING)
+                    .filter(BaseWorkType::isAssignable)
                     .distinct()
                     .toList();
             return workTypes;

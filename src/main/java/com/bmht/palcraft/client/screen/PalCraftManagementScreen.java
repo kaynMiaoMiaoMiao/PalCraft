@@ -294,7 +294,7 @@ public class PalCraftManagementScreen extends Screen {
     }
 
     private void addWorkButtons(PalCraftClientState.BaseSummary base, PalCraftClientState.BasePalSummary pal, int x, int y) {
-        String[] workTypes = {"mining", "logging", "planting", "hauling", "manufacturing"};
+        String[] workTypes = {"mining", "logging", "planting"};
         int buttonWidth = (detailInnerWidth() - 8) / 2;
         for (int i = 0; i < workTypes.length; i++) {
             String workType = workTypes[i];
@@ -302,13 +302,13 @@ public class PalCraftManagementScreen extends Screen {
                             PalCraftClientNetworking.sendBaseAssign(base.baseUuid(), pal.slot(), workType))
                     .dimensions(x + (i % 2) * (buttonWidth + 8), y + (i / 2) * 24, buttonWidth, 18)
                     .build();
-            button.active = pal.deployed() && !pal.assigned() && !"hauling".equals(workType) && !"manufacturing".equals(workType);
+            button.active = pal.deployed() && !pal.assigned();
             addDrawableChild(button);
         }
 
         ButtonWidget unassignButton = ButtonWidget.builder(Text.translatable("screen.palcraft.unassign"), button ->
                         PalCraftClientNetworking.sendBaseUnassign(base.baseUuid(), pal.instanceUuid()))
-                .dimensions(x + buttonWidth + 8, y + 48, buttonWidth, 18)
+                .dimensions(x + buttonWidth + 8, y + 24, buttonWidth, 18)
                 .build();
         unassignButton.active = pal.assigned();
         addDrawableChild(unassignButton);

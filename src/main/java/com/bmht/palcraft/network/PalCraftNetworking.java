@@ -208,7 +208,7 @@ public final class PalCraftNetworking {
         state.put("Bases", baseList);
 
         NbtList workTypes = new NbtList();
-        for (BaseWorkType workType : BaseWorkType.values()) {
+        for (BaseWorkType workType : BaseWorkType.assignableValues()) {
             NbtCompound workTypeNbt = new NbtCompound();
             workTypeNbt.putString("Id", workType.id());
             workTypes.add(workTypeNbt);

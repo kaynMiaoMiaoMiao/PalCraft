@@ -12,6 +12,12 @@ public enum BaseWorkType implements BaseWork {
     HAULING(2),
     MANUFACTURING(5);
 
+    private static final BaseWorkType[] ASSIGNABLE_VALUES = {
+            MINING,
+            LOGGING,
+            PLANTING
+    };
+
     private final int requiredWork;
 
     BaseWorkType(int requiredWork) {
@@ -26,42 +32,34 @@ public enum BaseWorkType implements BaseWork {
         return name().toLowerCase(Locale.ROOT);
     }
 
+    public boolean isAssignable() {
+        return this == MINING || this == LOGGING || this == PLANTING;
+    }
+
     public int suitability(PalInstance pal) {
         int score = 1;
         if (pal.level() >= 3) {
             score++;
         }
-        if (pal.elementType() == PalElementType.THUNDER && (this == MANUFACTURING || this == MINING)) {
+        if (pal.elementType() == PalElementType.THUNDER && this == MINING) {
             score += 2;
         }
-        if (pal.elementType() == PalElementType.FIRE && this == MANUFACTURING) {
-            score += 2;
-        }
-        if (pal.elementType() == PalElementType.WATER && (this == PLANTING || this == HAULING)) {
-            score += 2;
-        }
-        if (pal.elementType() == PalElementType.WIND && this == HAULING) {
+        if (pal.elementType() == PalElementType.WATER && this == PLANTING) {
             score += 2;
         }
         if (pal.elementType() == PalElementType.WOOD && (this == PLANTING || this == LOGGING)) {
             score += 2;
         }
-        if (pal.elementType() == PalElementType.ICE && this == HAULING) {
-            score += 1;
-        }
         if (pal.elementType() == PalElementType.EARTH && this == MINING) {
             score += 2;
-        }
-        if (this == HAULING) {
-            score++;
         }
         return score;
     }
 
     public static BaseWorkType bestFor(PalInstance pal) {
-        BaseWorkType bestType = HAULING;
+        BaseWorkType bestType = MINING;
         int bestScore = bestType.suitability(pal);
-        for (BaseWorkType workType : values()) {
+        for (BaseWorkType workType : assignableValues()) {
             int score = workType.suitability(pal);
             if (score > bestScore) {
                 bestType = workType;
@@ -71,12 +69,16 @@ public enum BaseWorkType implements BaseWork {
         return bestType;
     }
 
+    public static BaseWorkType[] assignableValues() {
+        return ASSIGNABLE_VALUES.clone();
+    }
+
     public static BaseWorkType fromId(String id) {
         for (BaseWorkType workType : values()) {
             if (workType.id().equals(id)) {
                 return workType;
             }
         }
-        return HAULING;
+        return MINING;
     }
 }
