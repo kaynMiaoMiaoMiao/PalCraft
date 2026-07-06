@@ -18,6 +18,9 @@ import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.damage.DamageSource;
+import net.minecraft.entity.data.DataTracker;
+import net.minecraft.entity.data.TrackedData;
+import net.minecraft.entity.data.TrackedDataHandlerRegistry;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.mob.PathAwareEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -28,9 +31,11 @@ import net.minecraft.registry.Registries;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.random.Random;
@@ -38,6 +43,7 @@ import net.minecraft.world.ServerWorldAccess;
 import net.minecraft.world.World;
 
 import com.bmht.palcraft.base.BaseData;
+import com.bmht.palcraft.base.BaseWorkType;
 import com.bmht.palcraft.partner.PalElementType;
 import com.bmht.palcraft.partner.PalInstance;
 import com.bmht.palcraft.partner.PalSkill;
@@ -59,11 +65,17 @@ public class SparkitEntity extends PathAwareEntity {
     private static final double LOW_HEALTH_RETURN_DISTANCE_SQUARED = 4.0D;
     private static final double TELEPORT_DISTANCE_SQUARED = 576.0D;
     private static final float LOW_HEALTH_RATIO = 0.35F;
+    private static final TrackedData<Boolean> BASE_WORKING = DataTracker.registerData(SparkitEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 
     private UUID ownerUuid;
     private UUID instanceUuid;
     private UUID baseUuid;
     private BlockPos baseCorePos;
+    private UUID activeWorkTaskUuid;
+    private BaseWorkType activeWorkType;
+    private BlockPos activeWorkTargetPos;
+    private int activeWorkTicks;
+    private int workFeedbackCooldown;
     private UUID lastAssistTargetUuid;
     private UUID lastProtectTargetUuid;
     private boolean lowHealthWarningSent;
@@ -98,11 +110,18 @@ public class SparkitEntity extends PathAwareEntity {
         this.goalSelector.add(0, new SwimGoal(this));
         this.goalSelector.add(1, new MeleeAttackGoal(this, 1.15D, true));
         this.goalSelector.add(2, new FollowSummonedOwnerGoal(this, 1.2D));
+        this.goalSelector.add(3, new BaseWorkerWorkGoal(this, 1.0D));
         this.goalSelector.add(4, new BaseWorkerWanderGoal(this, 0.85D));
         this.goalSelector.add(5, new WildWanderGoal(this, 0.9D));
         this.goalSelector.add(6, new LookAtEntityGoal(this, PlayerEntity.class, 6.0F));
         this.goalSelector.add(7, new LookAroundGoal(this));
         this.targetSelector.add(1, new RevengeGoal(this));
+    }
+
+    @Override
+    protected void initDataTracker() {
+        super.initDataTracker();
+        this.dataTracker.startTracking(BASE_WORKING, false);
     }
 
     @Override
@@ -217,6 +236,44 @@ public class SparkitEntity extends PathAwareEntity {
 
     public boolean isBaseWorker() {
         return ownerUuid != null && baseUuid != null;
+    }
+
+    public void setBaseWorkTarget(UUID taskUuid, BaseWorkType workType, BlockPos targetPos) {
+        if (!isBaseWorker()) {
+            clearBaseWorkTarget();
+            return;
+        }
+        if (taskUuid.equals(activeWorkTaskUuid) && targetPos.equals(activeWorkTargetPos) && workType == activeWorkType) {
+            return;
+        }
+
+        activeWorkTaskUuid = taskUuid;
+        activeWorkType = workType;
+        activeWorkTargetPos = targetPos.toImmutable();
+        activeWorkTicks = 0;
+        workFeedbackCooldown = 0;
+        setBaseWorking(false);
+    }
+
+    public void clearBaseWorkTarget() {
+        activeWorkTaskUuid = null;
+        activeWorkType = null;
+        activeWorkTargetPos = null;
+        activeWorkTicks = 0;
+        workFeedbackCooldown = 0;
+        setBaseWorking(false);
+    }
+
+    public boolean canProgressBaseTask(UUID taskUuid, BlockPos targetPos) {
+        return isBaseWorker()
+                && taskUuid.equals(activeWorkTaskUuid)
+                && targetPos.equals(activeWorkTargetPos)
+                && isBaseWorking()
+                && activeWorkTicks >= 20;
+    }
+
+    public boolean isBaseWorking() {
+        return this.dataTracker.get(BASE_WORKING);
     }
 
     public boolean isCapturedPal() {
@@ -339,6 +396,87 @@ public class SparkitEntity extends PathAwareEntity {
 
     private boolean isLowHealth() {
         return this.getHealth() <= this.getMaxHealth() * LOW_HEALTH_RATIO;
+    }
+
+    private void setBaseWorking(boolean working) {
+        if (this.dataTracker.get(BASE_WORKING) != working) {
+            this.dataTracker.set(BASE_WORKING, working);
+        }
+    }
+
+    private boolean isNearWorkTarget() {
+        if (activeWorkTargetPos == null) {
+            return false;
+        }
+
+        double dx = getX() - (activeWorkTargetPos.getX() + 0.5D);
+        double dz = getZ() - (activeWorkTargetPos.getZ() + 0.5D);
+        double horizontalDistanceSquared = dx * dx + dz * dz;
+        return horizontalDistanceSquared <= 6.25D && Math.abs(getY() - activeWorkTargetPos.getY()) <= 3.0D;
+    }
+
+    private BlockPos findWorkStandPos() {
+        if (activeWorkTargetPos == null) {
+            return null;
+        }
+
+        for (Direction direction : Direction.Type.HORIZONTAL) {
+            for (int yOffset = -1; yOffset <= 1; yOffset++) {
+                BlockPos candidate = activeWorkTargetPos.offset(direction).add(0, yOffset, 0);
+                if (canStandAt(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+        return activeWorkTargetPos.up();
+    }
+
+    private boolean canStandAt(BlockPos pos) {
+        World world = getWorld();
+        BlockPos groundPos = pos.down();
+        if (!world.getWorldBorder().contains(pos) || !world.getBlockState(groundPos).isSolidBlock(world, groundPos)) {
+            return false;
+        }
+        Box targetBox = this.getBoundingBox().offset(
+                pos.getX() + 0.5D - getX(),
+                pos.getY() - getY(),
+                pos.getZ() + 0.5D - getZ()
+        );
+        return world.isSpaceEmpty(this, targetBox);
+    }
+
+    private void tickBaseWorkFeedback() {
+        if (!(getWorld() instanceof ServerWorld serverWorld) || activeWorkType == null || activeWorkTargetPos == null) {
+            return;
+        }
+        if (workFeedbackCooldown-- > 0) {
+            return;
+        }
+
+        workFeedbackCooldown = 8;
+        double x = activeWorkTargetPos.getX() + 0.5D;
+        double y = activeWorkTargetPos.getY() + 0.75D;
+        double z = activeWorkTargetPos.getZ() + 0.5D;
+        serverWorld.spawnParticles(workParticle(activeWorkType), x, y, z, 5, 0.25D, 0.2D, 0.25D, 0.03D);
+        serverWorld.playSound(null, activeWorkTargetPos, workSound(activeWorkType), SoundCategory.BLOCKS, 0.35F, 0.9F + random.nextFloat() * 0.25F);
+    }
+
+    private ParticleEffect workParticle(BaseWorkType workType) {
+        return switch (workType) {
+            case MINING -> ParticleTypes.CRIT;
+            case LOGGING -> ParticleTypes.HAPPY_VILLAGER;
+            case PLANTING -> ParticleTypes.COMPOSTER;
+            case HAULING, MANUFACTURING -> ParticleTypes.CLOUD;
+        };
+    }
+
+    private SoundEvent workSound(BaseWorkType workType) {
+        return switch (workType) {
+            case MINING -> SoundEvents.BLOCK_STONE_HIT;
+            case LOGGING -> SoundEvents.BLOCK_WOOD_HIT;
+            case PLANTING -> SoundEvents.ITEM_CROP_PLANT;
+            case HAULING, MANUFACTURING -> SoundEvents.BLOCK_WOODEN_BUTTON_CLICK_ON;
+        };
     }
 
     private void tickSkillCooldowns() {
@@ -638,7 +776,7 @@ public class SparkitEntity extends PathAwareEntity {
 
         @Override
         public boolean canStart() {
-            return sparkit.isBaseWorker() && sparkit.baseCorePos != null && cooldown-- <= 0;
+            return sparkit.isBaseWorker() && sparkit.activeWorkTargetPos == null && sparkit.baseCorePos != null && cooldown-- <= 0;
         }
 
         @Override
@@ -654,7 +792,75 @@ public class SparkitEntity extends PathAwareEntity {
 
         @Override
         public boolean shouldContinue() {
-            return sparkit.isBaseWorker() && !sparkit.getNavigation().isIdle();
+            return sparkit.isBaseWorker() && sparkit.activeWorkTargetPos == null && !sparkit.getNavigation().isIdle();
+        }
+    }
+
+    private static final class BaseWorkerWorkGoal extends Goal {
+        private final SparkitEntity sparkit;
+        private final double speed;
+        private int updateCountdown;
+
+        private BaseWorkerWorkGoal(SparkitEntity sparkit, double speed) {
+            this.sparkit = sparkit;
+            this.speed = speed;
+            this.setControls(EnumSet.of(Control.MOVE, Control.LOOK));
+        }
+
+        @Override
+        public boolean canStart() {
+            return sparkit.isBaseWorker() && sparkit.activeWorkTargetPos != null;
+        }
+
+        @Override
+        public boolean shouldContinue() {
+            return sparkit.isBaseWorker() && sparkit.activeWorkTargetPos != null;
+        }
+
+        @Override
+        public void start() {
+            updateCountdown = 0;
+        }
+
+        @Override
+        public void stop() {
+            sparkit.setBaseWorking(false);
+            sparkit.getNavigation().stop();
+        }
+
+        @Override
+        public void tick() {
+            BlockPos targetPos = sparkit.activeWorkTargetPos;
+            if (targetPos == null) {
+                sparkit.setBaseWorking(false);
+                return;
+            }
+
+            sparkit.getLookControl().lookAt(
+                    targetPos.getX() + 0.5D,
+                    targetPos.getY() + 0.5D,
+                    targetPos.getZ() + 0.5D,
+                    20.0F,
+                    sparkit.getMaxLookPitchChange()
+            );
+
+            if (sparkit.isNearWorkTarget()) {
+                sparkit.getNavigation().stop();
+                sparkit.activeWorkTicks++;
+                sparkit.setBaseWorking(true);
+                sparkit.tickBaseWorkFeedback();
+                return;
+            }
+
+            sparkit.activeWorkTicks = 0;
+            sparkit.setBaseWorking(false);
+            if (--updateCountdown <= 0 || sparkit.getNavigation().isIdle()) {
+                updateCountdown = 20;
+                BlockPos standPos = sparkit.findWorkStandPos();
+                if (standPos != null) {
+                    sparkit.getNavigation().startMovingTo(standPos.getX() + 0.5D, standPos.getY(), standPos.getZ() + 0.5D, speed);
+                }
+            }
         }
     }
 

@@ -8,7 +8,7 @@ public final class BaseWorkEvents {
 
     public static void register() {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (server.getTicks() % 200 == 0) {
+            if (server.getTicks() % 20 == 0) {
                 BaseData.get(server).tickWork(server);
             }
         });

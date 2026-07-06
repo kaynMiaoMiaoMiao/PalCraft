@@ -52,6 +52,7 @@ public class BaseData extends PersistentState {
     private static final int SCAN_Y_MIN = -4;
     private static final int SCAN_Y_MAX = 8;
     private static final int SCAN_STEPS_PER_WORK = 768;
+    private static final int TASK_WORK_UNIT_MULTIPLIER = 3;
     private static final float STORAGE_HEAL_MIN = 4.0F;
     private static final float STORAGE_HEAL_RATIO = 0.25F;
 
@@ -343,12 +344,15 @@ public class BaseData extends PersistentState {
                 continue;
             }
 
+            changed |= base.clearStaleTaskWorkers();
+
             if (server.getTicks() >= base.nextTaskScanTick && base.taskQueue.size() < MAX_TASK_QUEUE_SIZE) {
                 changed |= enqueueDiscoveredTasks(base, world, server.getTicks());
             }
 
             for (AssignedPal assignment : base.assignments) {
-                if (!base.hasDeployment(assignment.palUuid)) {
+                Optional<DeployedPal> deployment = base.findDeployment(assignment.palUuid);
+                if (deployment.isEmpty()) {
                     continue;
                 }
                 Optional<PalInstance> pal = findPal(base.storedPals, assignment.palUuid)
@@ -357,15 +361,36 @@ public class BaseData extends PersistentState {
                     continue;
                 }
 
-                Optional<BaseTask> task = base.findTaskFor(assignment.workType);
+                Optional<BaseTask> task = base.findTaskFor(assignment.workType, assignment.palUuid);
                 if (task.isEmpty()) {
+                    clearWorkerTarget(world, deployment.get());
                     continue;
                 }
 
                 BaseTask baseTask = task.get();
+                baseTask.workerPalUuid = assignment.palUuid;
+                Optional<SparkitEntity> workerEntity = findWorkerEntity(world, deployment.get());
+                if (workerEntity.isEmpty()) {
+                    continue;
+                }
+
+                SparkitEntity worker = workerEntity.get();
+                if (!isValidWorkTarget(world.getBlockState(baseTask.targetPos), baseTask.workType)) {
+                    worker.clearBaseWorkTarget();
+                    base.taskQueue.remove(baseTask);
+                    changed = true;
+                    continue;
+                }
+
+                worker.setBaseWorkTarget(baseTask.taskUuid, baseTask.workType, baseTask.targetPos);
+                if (!worker.canProgressBaseTask(baseTask.taskUuid, baseTask.targetPos)) {
+                    continue;
+                }
+
                 baseTask.progress += Math.max(1, assignment.workType.suitability(pal.get()));
                 if (baseTask.progress >= baseTask.requiredWork) {
                     if (completeTask(world, baseTask)) {
+                        worker.clearBaseWorkTarget();
                         base.taskQueue.remove(baseTask);
                     }
                 }
@@ -403,7 +428,7 @@ public class BaseData extends PersistentState {
             if (targetPos.isEmpty()) {
                 continue;
             }
-            base.taskQueue.add(new BaseTask(UUID.randomUUID(), workType, 0, workType.requiredWork(), targetPos.get()));
+            base.taskQueue.add(new BaseTask(UUID.randomUUID(), workType, 0, workType.requiredWork() * TASK_WORK_UNIT_MULTIPLIER, targetPos.get(), null));
             queued++;
         }
         base.nextTaskScanTick = serverTicks + TASK_SCAN_INTERVAL_TICKS;
@@ -630,6 +655,21 @@ public class BaseData extends PersistentState {
         return base.corePos.up();
     }
 
+    private Optional<SparkitEntity> findWorkerEntity(ServerWorld world, DeployedPal deployment) {
+        if (deployment.entityUuid == null) {
+            return Optional.empty();
+        }
+        Entity entity = world.getEntity(deployment.entityUuid);
+        if (entity instanceof SparkitEntity sparkitEntity && sparkitEntity.isAlive()) {
+            return Optional.of(sparkitEntity);
+        }
+        return Optional.empty();
+    }
+
+    private void clearWorkerTarget(ServerWorld world, DeployedPal deployment) {
+        findWorkerEntity(world, deployment).ifPresent(SparkitEntity::clearBaseWorkTarget);
+    }
+
     public void markBaseWorkerDead(UUID ownerUuid, UUID baseUuid, UUID palUuid, UUID entityUuid, float health) {
         Optional<BaseRecord> matchingBase = bases.stream()
                 .filter(base -> base.ownerUuid.equals(ownerUuid))
@@ -711,6 +751,9 @@ public class BaseData extends PersistentState {
                 taskNbt.putInt("TargetX", task.targetPos.getX());
                 taskNbt.putInt("TargetY", task.targetPos.getY());
                 taskNbt.putInt("TargetZ", task.targetPos.getZ());
+                if (task.workerPalUuid != null) {
+                    taskNbt.putUuid("WorkerPalUuid", task.workerPalUuid);
+                }
                 taskList.add(taskNbt);
             }
             baseNbt.put("Tasks", taskList);
@@ -802,7 +845,8 @@ public class BaseData extends PersistentState {
                         taskNbt.getInt("RequiredWork"),
                         taskNbt.contains("TargetX")
                                 ? new BlockPos(taskNbt.getInt("TargetX"), taskNbt.getInt("TargetY"), taskNbt.getInt("TargetZ"))
-                                : record.corePos
+                                : record.corePos,
+                        taskNbt.containsUuid("WorkerPalUuid") ? taskNbt.getUuid("WorkerPalUuid") : null
                 ));
             }
             data.bases.add(record);
@@ -1005,11 +1049,20 @@ public class BaseData extends PersistentState {
             return deployments.stream().anyMatch(deployment -> deployment.palUuid.equals(palUuid));
         }
 
-        private Optional<BaseTask> findTaskFor(BaseWorkType workType) {
+        private Optional<DeployedPal> findDeployment(UUID palUuid) {
+            return deployments.stream()
+                    .filter(deployment -> deployment.palUuid.equals(palUuid))
+                    .findFirst();
+        }
+
+        private Optional<BaseTask> findTaskFor(BaseWorkType workType, UUID palUuid) {
             Optional<BaseTask> matchingTask = taskQueue.stream()
                     .filter(task -> task.workType == workType)
+                    .filter(task -> task.workerPalUuid == null || task.workerPalUuid.equals(palUuid))
                     .findFirst();
-            return matchingTask.or(() -> taskQueue.stream().findFirst());
+            return matchingTask.or(() -> taskQueue.stream()
+                    .filter(task -> task.workerPalUuid == null || task.workerPalUuid.equals(palUuid))
+                    .findFirst());
         }
 
         private boolean hasQueuedTarget(BaseWorkType workType, BlockPos pos) {
@@ -1023,6 +1076,20 @@ public class BaseData extends PersistentState {
                     .distinct()
                     .toList();
             return workTypes;
+        }
+
+        private boolean clearStaleTaskWorkers() {
+            boolean changed = false;
+            for (BaseTask task : taskQueue) {
+                if (task.workerPalUuid == null) {
+                    continue;
+                }
+                if (!hasDeployment(task.workerPalUuid) || !hasAssignment(task.workerPalUuid)) {
+                    task.workerPalUuid = null;
+                    changed = true;
+                }
+            }
+            return changed;
         }
 
         private void addStock(BaseWorkType workType, long amount) {
@@ -1115,13 +1182,15 @@ public class BaseData extends PersistentState {
         private int progress;
         private final int requiredWork;
         private final BlockPos targetPos;
+        private UUID workerPalUuid;
 
-        private BaseTask(UUID taskUuid, BaseWorkType workType, int progress, int requiredWork, BlockPos targetPos) {
+        private BaseTask(UUID taskUuid, BaseWorkType workType, int progress, int requiredWork, BlockPos targetPos, UUID workerPalUuid) {
             this.taskUuid = taskUuid;
             this.workType = workType;
             this.progress = progress;
             this.requiredWork = requiredWork;
             this.targetPos = targetPos;
+            this.workerPalUuid = workerPalUuid;
         }
     }
 
