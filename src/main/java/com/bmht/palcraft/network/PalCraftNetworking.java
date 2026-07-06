@@ -4,6 +4,7 @@ import com.bmht.palcraft.PalCraft;
 import com.bmht.palcraft.base.BaseData;
 import com.bmht.palcraft.base.BaseWorkType;
 import com.bmht.palcraft.partner.PalInstance;
+import com.bmht.palcraft.partner.PalSpecies;
 import com.bmht.palcraft.partner.PlayerPalData;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -150,6 +151,9 @@ public final class PalCraftNetworking {
             palNbt.putString("SpeciesName", Registries.ENTITY_TYPE.get(pal.speciesId()).getName().getString());
             palNbt.putString("SpeciesTranslationKey", Registries.ENTITY_TYPE.get(pal.speciesId()).getTranslationKey());
             palNbt.putString("SpeciesId", pal.speciesId().toString());
+            PalSpecies species = PalSpecies.fromId(pal.speciesId());
+            palNbt.putString("RoleTranslationKey", species.roleTranslationKey());
+            palNbt.putString("WorkSuitability", species.workSuitabilitySummary());
             palNbt.putString("CustomName", pal.customName());
             palNbt.putDouble("Talent", pal.talent());
             palNbt.putInt("Level", pal.level());
@@ -182,6 +186,7 @@ public final class PalCraftNetworking {
             baseNbt.putInt("QueuedTasks", base.queuedTasks());
             baseNbt.putString("Assignments", base.assignmentSummary());
             baseNbt.putString("Stock", base.stockSummary());
+            baseNbt.putString("TaskProgress", base.taskProgressSummary());
 
             NbtList storedPals = new NbtList();
             for (BaseData.BasePalView storedPal : base.storedPals()) {
@@ -191,6 +196,9 @@ public final class PalCraftNetworking {
                 storedPalNbt.putString("InstanceUuid", pal.instanceUuid().toString());
                 storedPalNbt.putString("SpeciesName", Registries.ENTITY_TYPE.get(pal.speciesId()).getName().getString());
                 storedPalNbt.putString("SpeciesTranslationKey", Registries.ENTITY_TYPE.get(pal.speciesId()).getTranslationKey());
+                PalSpecies species = PalSpecies.fromId(pal.speciesId());
+                storedPalNbt.putString("RoleTranslationKey", species.roleTranslationKey());
+                storedPalNbt.putString("WorkSuitability", species.workSuitabilitySummary());
                 storedPalNbt.putString("CustomName", pal.customName());
                 storedPalNbt.putDouble("Talent", pal.talent());
                 storedPalNbt.putInt("Level", pal.level());
@@ -200,6 +208,7 @@ public final class PalCraftNetworking {
                 storedPalNbt.putBoolean("Deployed", storedPal.deployed());
                 storedPalNbt.putBoolean("Assigned", storedPal.assigned());
                 storedPalNbt.putString("WorkType", storedPal.workType() == null ? "" : storedPal.workType().id());
+                storedPalNbt.putString("WorkProgress", storedPal.workProgressSummary());
                 storedPals.add(storedPalNbt);
             }
             baseNbt.put("StoredPals", storedPals);

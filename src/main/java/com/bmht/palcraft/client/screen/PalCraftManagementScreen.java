@@ -298,7 +298,8 @@ public class PalCraftManagementScreen extends Screen {
         int buttonWidth = (detailInnerWidth() - 8) / 2;
         for (int i = 0; i < workTypes.length; i++) {
             String workType = workTypes[i];
-            ButtonWidget button = ButtonWidget.builder(Text.translatable("work.palcraft." + workType), ignored ->
+            String label = I18n.translate("screen.palcraft.work_score", I18n.translate("work.palcraft." + workType), workSuitabilityScore(pal.workSuitability(), workType));
+            ButtonWidget button = ButtonWidget.builder(Text.literal(label), ignored ->
                             PalCraftClientNetworking.sendBaseAssign(base.baseUuid(), pal.slot(), workType))
                     .dimensions(x + (i % 2) * (buttonWidth + 8), y + (i / 2) * 24, buttonWidth, 18)
                     .build();
@@ -409,6 +410,7 @@ public class PalCraftManagementScreen extends Screen {
         int summaryY = cardY + 106;
         drawSummaryLine(context, x, summaryY, sectionWidth - 20, I18n.translate("screen.palcraft.base_work_summary", localizedWorkSummary(base.assignments())), COLOR_ACCENT);
         drawSummaryLine(context, x, summaryY + 18, sectionWidth - 20, I18n.translate("screen.palcraft.base_stock_summary", base.totalStock(), localizedWorkSummary(base.stock())), 0xFFDCA5FF);
+        drawSummaryLine(context, x, summaryY + 36, sectionWidth - 20, I18n.translate("screen.palcraft.base_task_progress", localizedTaskProgressSummary(base.taskProgress())), base.queuedTasks() > 0 ? COLOR_WARN : COLOR_TEXT_MUTED);
     }
 
     private void renderBaseWork(DrawContext context, PalCraftClientState.BaseSummary base, int panelX, int panelY) {
@@ -474,7 +476,9 @@ public class PalCraftManagementScreen extends Screen {
 
         drawChip(context, x, y + 88, (width - 6) / 2, I18n.translate("screen.palcraft.stats_value", oneDecimal(pal.attack()), oneDecimal(pal.defense())));
         drawChip(context, x + (width + 6) / 2, y + 88, (width - 6) / 2, I18n.translate("element.palcraft." + pal.element()));
-        drawTextClipped(context, I18n.translate("screen.palcraft.skills_value", localizedSkills(pal.skills())), x, y + 114, width, COLOR_TEXT_MUTED);
+        drawTextClipped(context, I18n.translate("screen.palcraft.role_value", localizedRole(pal.roleTranslationKey())), x, y + 114, width, COLOR_TEXT_MUTED);
+        drawTextClipped(context, I18n.translate("screen.palcraft.work_suitability_value", localizedWorkSummary(pal.workSuitability())), x, y + 128, width, COLOR_TEXT_MUTED);
+        drawTextClipped(context, I18n.translate("screen.palcraft.skills_value", localizedSkills(pal.skills())), x, y + 142, width, COLOR_TEXT_MUTED);
     }
 
     private void renderBasePalDetails(DrawContext context, PalCraftClientState.BasePalSummary pal, int x, int y, int width) {
@@ -492,6 +496,9 @@ public class PalCraftManagementScreen extends Screen {
         String deployed = pal.deployed() ? I18n.translate("screen.palcraft.deployed") : I18n.translate("screen.palcraft.in_storage");
         drawChip(context, x, y + 66, (width - 6) / 2, I18n.translate("screen.palcraft.assignment_status", status));
         drawChip(context, x + (width + 6) / 2, y + 66, (width - 6) / 2, I18n.translate("screen.palcraft.deploy_status", deployed));
+        drawTextClipped(context, I18n.translate("screen.palcraft.role_value", localizedRole(pal.roleTranslationKey())), x, y + 92, width, COLOR_TEXT_MUTED);
+        drawTextClipped(context, I18n.translate("screen.palcraft.work_suitability_value", localizedWorkSummary(pal.workSuitability())), x, y + 106, width, COLOR_TEXT_MUTED);
+        drawTextClipped(context, I18n.translate("screen.palcraft.work_progress_value", localizedTaskProgressSummary(pal.workProgress())), x, y + 120, width, COLOR_TEXT_MUTED);
     }
 
     private void drawPlayerSelectionAccents(DrawContext context, int panelX, int panelY, PalCraftClientState.UiState state) {
@@ -740,6 +747,46 @@ public class PalCraftManagementScreen extends Screen {
             }
         }
         return names.isEmpty() ? I18n.translate("screen.palcraft.none") : String.join(", ", names);
+    }
+
+    private String localizedTaskProgressSummary(String summary) {
+        if (summary == null || summary.isBlank() || "none".equals(summary)) {
+            return I18n.translate("screen.palcraft.none");
+        }
+        String[] entries = summary.split(", ");
+        java.util.List<String> names = new java.util.ArrayList<>();
+        for (String entry : entries) {
+            String[] parts = entry.split(":");
+            if (parts.length != 2) {
+                continue;
+            }
+            names.add(I18n.translate("work.palcraft." + parts[0]) + " " + parts[1]);
+        }
+        return names.isEmpty() ? I18n.translate("screen.palcraft.none") : String.join(", ", names);
+    }
+
+    private String localizedRole(String translationKey) {
+        if (translationKey == null || translationKey.isBlank()) {
+            return I18n.translate("screen.palcraft.none");
+        }
+        return I18n.translate(translationKey);
+    }
+
+    private int workSuitabilityScore(String summary, String workType) {
+        if (summary == null || summary.isBlank()) {
+            return 1;
+        }
+        for (String entry : summary.split(", ")) {
+            String[] parts = entry.split(":");
+            if (parts.length == 2 && parts[0].equals(workType)) {
+                try {
+                    return Integer.parseInt(parts[1]);
+                } catch (NumberFormatException ignored) {
+                    return 1;
+                }
+            }
+        }
+        return 1;
     }
 
     private enum Mode {

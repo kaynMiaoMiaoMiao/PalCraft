@@ -356,6 +356,10 @@ public enum PalSpecies {
         return "entity." + PalCraft.MOD_ID + "." + path;
     }
 
+    public String roleTranslationKey() {
+        return "role." + PalCraft.MOD_ID + "." + path;
+    }
+
     public String spawnEggItemPath() {
         return path + "_spawn_egg";
     }
@@ -366,6 +370,13 @@ public enum PalSpecies {
 
     public int workSuitability(BaseWorkType workType) {
         return workSuitability.getOrDefault(workType, 1);
+    }
+
+    public String workSuitabilitySummary() {
+        List<String> entries = Arrays.stream(BaseWorkType.assignableValues())
+                .map(workType -> workType.id() + ":" + workSuitability(workType))
+                .toList();
+        return String.join(", ", entries);
     }
 
     public float maxHealthForLevel(int level, double talent) {

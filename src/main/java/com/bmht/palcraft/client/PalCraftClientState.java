@@ -28,6 +28,8 @@ public final class PalCraftClientState {
                     palNbt.getString("SpeciesName"),
                     palNbt.getString("SpeciesTranslationKey"),
                     palNbt.getString("SpeciesId"),
+                    palNbt.getString("RoleTranslationKey"),
+                    palNbt.getString("WorkSuitability"),
                     palNbt.getString("CustomName"),
                     palNbt.getDouble("Talent"),
                     palNbt.getInt("Level"),
@@ -57,6 +59,8 @@ public final class PalCraftClientState {
                         palNbt.getString("InstanceUuid"),
                         palNbt.getString("SpeciesName"),
                         palNbt.getString("SpeciesTranslationKey"),
+                        palNbt.getString("RoleTranslationKey"),
+                        palNbt.getString("WorkSuitability"),
                         palNbt.getString("CustomName"),
                         palNbt.getDouble("Talent"),
                         palNbt.getInt("Level"),
@@ -65,7 +69,8 @@ public final class PalCraftClientState {
                         palNbt.getString("Element"),
                         palNbt.getBoolean("Deployed"),
                         palNbt.getBoolean("Assigned"),
-                        palNbt.getString("WorkType")
+                        palNbt.getString("WorkType"),
+                        palNbt.getString("WorkProgress")
                 ));
             }
             bases.add(new BaseSummary(
@@ -79,6 +84,7 @@ public final class PalCraftClientState {
                     baseNbt.getInt("QueuedTasks"),
                     baseNbt.getString("Assignments"),
                     baseNbt.getString("Stock"),
+                    baseNbt.getString("TaskProgress"),
                     List.copyOf(storedPals)
             ));
         }
@@ -97,6 +103,8 @@ public final class PalCraftClientState {
             String speciesName,
             String speciesTranslationKey,
             String speciesId,
+            String roleTranslationKey,
+            String workSuitability,
             String customName,
             double talent,
             int level,
@@ -127,6 +135,7 @@ public final class PalCraftClientState {
             int queuedTasks,
             String assignments,
             String stock,
+            String taskProgress,
             List<BasePalSummary> storedPals
     ) {
     }
@@ -136,6 +145,8 @@ public final class PalCraftClientState {
             String instanceUuid,
             String speciesName,
             String speciesTranslationKey,
+            String roleTranslationKey,
+            String workSuitability,
             String customName,
             double talent,
             int level,
@@ -144,7 +155,8 @@ public final class PalCraftClientState {
             String element,
             boolean deployed,
             boolean assigned,
-            String workType
+            String workType,
+            String workProgress
     ) {
         public String displayName() {
             return customName.isBlank() ? speciesName : customName;

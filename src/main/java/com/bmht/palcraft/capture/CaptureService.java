@@ -38,6 +38,13 @@ public final class CaptureService {
         boolean success = target.getRandom().nextDouble() < chance;
 
         if (!success) {
+            if (player instanceof ServerPlayerEntity serverPlayer) {
+                serverPlayer.sendMessage(Text.translatable(
+                        "message.palcraft.capture_failed",
+                        target.getDisplayName(),
+                        chancePercent(chance)
+                ), false);
+            }
             playFailureFeedback(target.getWorld(), target);
             PalCraft.LOGGER.info("Capture failed for {} with chance {}", target.getType(), chance);
             return CaptureResult.failed(chance);
@@ -53,12 +60,12 @@ public final class CaptureService {
                 return CaptureResult.failed(chance);
             }
             if (addResult == PlayerPalData.AddResult.FULL) {
-                player.sendMessage(Text.translatable("message.palcraft.capture_sent_to_base", target.getDisplayName()), false);
+                player.sendMessage(Text.translatable("message.palcraft.capture_sent_to_base_detail", target.getDisplayName(), chancePercent(chance)), false);
             } else {
-                player.sendMessage(Text.translatable("message.palcraft.capture_success", target.getDisplayName()), false);
+                player.sendMessage(Text.translatable("message.palcraft.capture_success_detail", target.getDisplayName(), chancePercent(chance)), false);
             }
         } else {
-            player.sendMessage(Text.translatable("message.palcraft.capture_success", target.getDisplayName()), false);
+            player.sendMessage(Text.translatable("message.palcraft.capture_success_detail", target.getDisplayName(), chancePercent(chance)), false);
         }
         target.discard();
         playSuccessFeedback(target.getWorld(), target);
@@ -80,6 +87,10 @@ public final class CaptureService {
                 MIN_CAPTURE_CHANCE,
                 MAX_CAPTURE_CHANCE
         );
+    }
+
+    private static int chancePercent(double chance) {
+        return MathHelper.clamp((int) Math.round(chance * 100.0D), 0, 100);
     }
 
     private static void playSuccessFeedback(World world, LivingEntity target) {

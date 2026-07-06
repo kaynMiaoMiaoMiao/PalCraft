@@ -946,6 +946,7 @@ public class BaseData extends PersistentState {
             int queuedTasks,
             String stockSummary,
             String assignmentSummary,
+            String taskProgressSummary,
             List<BasePalView> storedPals,
             List<AssignedPalView> assignedPals
     ) {
@@ -954,7 +955,7 @@ public class BaseData extends PersistentState {
         }
     }
 
-    public record BasePalView(int slot, PalInstance pal, boolean deployed, boolean assigned, BaseWorkType workType) {
+    public record BasePalView(int slot, PalInstance pal, boolean deployed, boolean assigned, BaseWorkType workType, String workProgressSummary) {
     }
 
     public record AssignedPalView(UUID palUuid, BaseWorkType workType) {
@@ -1036,6 +1037,7 @@ public class BaseData extends PersistentState {
                     taskQueue.size(),
                     stockSummary(),
                     assignmentSummary(),
+                    taskProgressSummary(),
                     storedPalViews(),
                     assignedPalViews()
             );
@@ -1132,6 +1134,20 @@ public class BaseData extends PersistentState {
             return String.join(", ", entries);
         }
 
+        private String taskProgressSummary() {
+            if (taskQueue.isEmpty()) {
+                return "none";
+            }
+            List<String> entries = new ArrayList<>();
+            for (BaseTask task : taskQueue) {
+                entries.add(task.progressSummary());
+                if (entries.size() >= 4) {
+                    break;
+                }
+            }
+            return String.join(", ", entries);
+        }
+
         private List<BasePalView> storedPalViews() {
             List<BasePalView> views = new ArrayList<>();
             for (int i = 0; i < storedPals.size(); i++) {
@@ -1144,10 +1160,19 @@ public class BaseData extends PersistentState {
                         pal,
                         hasDeployment(pal.instanceUuid()),
                         assignment.isPresent(),
-                        assignment.map(assignedPal -> assignedPal.workType).orElse(null)
+                        assignment.map(assignedPal -> assignedPal.workType).orElse(null),
+                        workProgressSummary(pal.instanceUuid())
                 ));
             }
             return List.copyOf(views);
+        }
+
+        private String workProgressSummary(UUID palUuid) {
+            return taskQueue.stream()
+                    .filter(task -> palUuid.equals(task.workerPalUuid))
+                    .findFirst()
+                    .map(BaseTask::progressSummary)
+                    .orElse("none");
         }
 
         private List<AssignedPalView> assignedPalViews() {
@@ -1191,6 +1216,10 @@ public class BaseData extends PersistentState {
             this.requiredWork = requiredWork;
             this.targetPos = targetPos;
             this.workerPalUuid = workerPalUuid;
+        }
+
+        private String progressSummary() {
+            return workType.id() + ":" + progress + "/" + requiredWork;
         }
     }
 
