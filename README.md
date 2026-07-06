@@ -1,8 +1,8 @@
 # PalCraft
 
-PalCraft is a Minecraft 1.20.1 Fabric mod project focused on original companion capture, companion growth, combat assistance, and later base automation gameplay.
+PalCraft is a Minecraft 1.20.1 Fabric mod project focused on original companion capture, companion growth, combat assistance, companion management, and base automation gameplay.
 
-The project is in early development. Current features include a custom creative mode tab, a capture orb item, throwable capture orb behavior, and the early capture-flow foundation that will be connected to original companion entities in later phases.
+Version 1.11.0 is the first sealed gameplay foundation. Current features include capture orbs, multiple companion species, player companion storage, summon and recall, combat assistance, progression, element skills, base cores, base companion storage, base deployment, base work assignment, and visible base work actions.
 
 ## AI Authorship Notice
 
@@ -35,9 +35,13 @@ The built mod jar will be generated under `build/libs/`.
 
 ## Documentation
 
-The development plan is tracked in:
+Development and version planning are tracked in:
 
 [doc/palcraft-development-plan.md](doc/palcraft-development-plan.md)
+
+[doc/palcraft-1.11-release-notes.md](doc/palcraft-1.11-release-notes.md)
+
+[doc/palcraft-2.0-plan.md](doc/palcraft-2.0-plan.md)
 
 ## License
 
