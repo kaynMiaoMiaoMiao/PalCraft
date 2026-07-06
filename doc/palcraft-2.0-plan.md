@@ -1,138 +1,148 @@
-# PalCraft 2.0 Plan
+# PalCraft 2.0 开发计划
 
-Status: planning
-Base version: 1.11.0
-Primary goal: integrate the purchased partner asset batch, then improve gameplay depth and player experience.
+状态：规划中  
+基础版本：1.11.0  
+主要目标：接入购买的伙伴模型资产，完善玩法深度，并优化玩家体验。
 
-## Asset Batch
+## 资产来源
 
-Source directory:
+本轮准备接入的资源目录：
 
 ```text
 /Users/bmht/Downloads/111
 ```
 
-Detected pack:
+识别到的资源包：
 
 ```text
 Nocsy Mount Pack Vol.1
 ```
 
-Available model groups:
+可用模型组：
 
-- Dodo: ground companion, early-game mount candidate.
-- Leopard: combat companion candidate.
-- Lizard: earth, fire, poison, or desert companion candidate.
-- Moth: flying companion candidate.
-- Ram: charge, mining, hauling, or mountain companion candidate.
+- Dodo：走地伙伴，适合做前期伙伴或早期坐骑候选。
+- Leopard：豹子，适合做战斗伙伴候选。
+- Lizard：蜥蜴，适合做土、火、毒或沙漠主题伙伴候选。
+- Moth：飞蛾，适合做飞行伙伴候选。
+- Ram：公羊，适合做冲撞、采矿、搬运或山地伙伴候选。
 
-Each group includes adult, baby, and egg `.bbmodel` files. The `.bbmodel` files include embedded textures and animation data.
+每组都有成年体、幼体和蛋的 `.bbmodel` 文件。`.bbmodel` 内已经包含贴图和动画数据。
 
-## Integration Direction
+## 接入方向
 
-The pack is built for MythicMobs, ModelEngine, and MCPets. It is not a Fabric entity renderer format. PalCraft 2.0 should not try to manually copy those models into the existing simple `ModelPart` renderer.
+这套资源原本是给 MythicMobs、ModelEngine 和 MCPets 用的，不是 Fabric 原生实体渲染格式。PalCraft 2.0 不建议把这些模型硬塞进现在的简易 `ModelPart` 渲染器。
 
-Preferred path:
+推荐路线：
 
-1. Add GeckoLib for animated entity rendering.
-2. Convert one `.bbmodel` group to GeckoLib-compatible geometry, animation, and texture resources.
-3. Integrate one pilot companion end to end.
-4. Generalize the registry and species data so more model-backed companions can be added with less code churn.
-5. Convert the remaining selected companions.
+1. 引入 GeckoLib，用它负责动画实体渲染。
+2. 先转换一组 `.bbmodel`，生成 GeckoLib 可用的模型、动画和贴图资源。
+3. 把第一只模型伙伴从注册、渲染、生成、捕捉、召唤、收回完整跑通。
+4. 整理伙伴注册和物种数据，减少后续新增伙伴时的重复代码。
+5. 再逐步转换剩余选定伙伴。
 
-Pilot recommendation:
+第一只推荐：
 
 ```text
-Ram or Dodo first.
+Ram 或 Dodo
 ```
 
-Reason: both are ground companions, so movement, collision, and AI are simpler than a flying Moth. Ram has a clear gameplay identity for charge, mining, and base work. Dodo has a clear identity for early-game mount and utility.
+原因：这两个都是地面伙伴，移动、碰撞和 AI 成本低于飞行伙伴。Ram 的定位适合冲撞、采矿和据点工作；Dodo 的定位适合前期伙伴和轻量坐骑。
 
-## Legal And Packaging Check
+## 授权和打包检查
 
-Before any purchased asset is committed into the repository or shipped in a jar:
+在把购买的资源提交进仓库或打进 jar 前，必须先确认：
 
-- Confirm the purchase license allows redistribution inside a Minecraft mod jar.
-- Confirm whether redistribution is allowed under this project's GPL-3.0-only license.
-- If license terms are incompatible, keep assets local-only and do not publish them with the GPL repository.
+- 购买协议是否允许把模型、贴图、动画随 Minecraft Mod 一起再分发。
+- 购买协议是否允许放进当前 GPL-3.0-only 项目。
+- 如果授权不兼容，只能本地开发测试使用，不能随 GPL 仓库或发布包公开分发。
 
-## 2.0 Milestones
+## 2.0 里程碑
 
-### Milestone 2.0.1: Rendering Pipeline
+### 里程碑 2.0.1：动画渲染管线
 
-- Add GeckoLib dependency.
-- Add one converted model-backed companion.
-- Register renderer, model, texture, and animations.
-- Keep the old simple companions working during migration.
-- `./gradlew build` must pass.
+任务：
 
-Acceptance:
+- 添加 GeckoLib 依赖。
+- 转换并接入第一只模型伙伴。
+- 注册渲染器、模型、贴图和动画。
+- 保持 1.11 的简易伙伴仍然可用。
+- 保证 `./gradlew build` 通过。
 
-- The pilot companion spawns in game with the purchased model.
-- Idle and walk animations play.
-- No missing texture or missing model warnings for the pilot companion.
+验收标准：
 
-### Milestone 2.0.2: Species System Cleanup
+- 第一只模型伙伴能在游戏里生成。
+- idle 和 walk 动画能正常播放。
+- 没有 missing model 或 missing texture 警告。
 
-- Split species metadata from hardcoded entity registration where practical.
-- Prepare stable identifiers for the new companion batch.
-- Define element, stats, skills, spawn rules, work suitability, and display names.
+### 里程碑 2.0.2：伙伴物种系统整理
 
-Acceptance:
+任务：
 
-- Adding a new companion requires minimal repeated registry code.
-- Existing 1.11 saved companion data remains readable.
+- 尽量把物种元数据从硬编码注册逻辑中拆出来。
+- 为新伙伴批次准备稳定 ID。
+- 定义元素、属性、技能、生成规则、工作适性和显示名称。
 
-### Milestone 2.0.3: New Companion Batch
+验收标准：
 
-- Add selected adult companions from the purchased pack.
-- Add spawn eggs or PalCraft-specific acquisition items.
-- Add loot tables, language entries, catchable tags, and base work suitability.
-- Add companion-specific skills where they have a clear gameplay purpose.
+- 新增伙伴时不需要复制大量注册代码。
+- 1.11 旧存档里的伙伴数据仍然能读取。
 
-Acceptance:
+### 里程碑 2.0.3：新伙伴批次
 
-- Each new companion can spawn, be captured, be stored, be summoned, fight, and work at a base.
+任务：
 
-### Milestone 2.0.4: Gameplay Polish
+- 接入选定的成年体伙伴。
+- 添加刷怪蛋或 PalCraft 专属获取物品。
+- 添加掉落表、语言文件、可捕捉 tag 和据点工作适性。
+- 给定位明确的伙伴补专属技能。
 
-- Improve capture pacing and feedback.
-- Add clearer companion roles.
-- Add better base work feedback and UI status.
-- Reduce command dependency further.
-- Improve balance for stats, talent, skills, and work speed.
+验收标准：
 
-Acceptance:
+- 每个新伙伴都能生成、捕捉、入库、召唤、战斗和参与据点工作。
 
-- A normal survival player can understand what to do without reading commands.
-- Base companions visibly look busy and useful.
-- Companion role differences are obvious in combat or base work.
+### 里程碑 2.0.4：玩法体验优化
 
-### Milestone 2.0.5: Experience Optimization
+任务：
 
-- Profile entity counts, base scanning, and animation cost.
-- Limit expensive scans and unnecessary network sync.
-- Improve UI layout for larger companion collections.
-- Add save-data migration notes if any persistent structure changes.
+- 优化捕捉节奏和反馈。
+- 让不同伙伴的定位更清楚。
+- 增强据点工作反馈和 UI 状态显示。
+- 进一步减少对命令的依赖。
+- 调整属性、天赋、技能和工作速度的平衡。
 
-Acceptance:
+验收标准：
 
-- `./gradlew build` passes.
-- Single-player testing remains smooth with multiple deployed companions.
-- Dedicated-server behavior remains server-authoritative.
+- 生存玩家不看命令也能理解主要玩法。
+- 据点伙伴看起来确实在忙，并且对玩家有实际价值。
+- 不同伙伴在战斗或据点工作中的差异明显。
 
-## Out Of Scope For Early 2.0
+### 里程碑 2.0.5：性能和体验收尾
 
-- Full breeding system.
-- Large tech tree.
-- Boss progression.
-- Complex item production chains.
-- Flying mount gameplay, unless the Moth is explicitly selected for a later 2.0 milestone.
+任务：
 
-## Immediate Next Task
+- 检查实体数量、据点扫描和动画渲染成本。
+- 限制昂贵扫描和不必要的网络同步。
+- 优化大伙伴数量下的 UI 布局。
+- 如果持久化数据结构变化，补充存档迁移说明。
 
-Start with a technical spike:
+验收标准：
 
-1. Add GeckoLib.
-2. Convert and integrate either Ram or Dodo as the first model-backed companion.
-3. Keep the scope narrow: spawn egg, renderer, idle/walk animation, capture, summon, and recall.
+- `./gradlew build` 通过。
+- 单人世界中部署多个伙伴仍然流畅。
+- 专用服务器中核心逻辑仍然以服务端为准。
+
+## 早期 2.0 暂不做
+
+- 完整繁殖系统。
+- 大型科技树。
+- Boss 进度线。
+- 复杂物品生产链。
+- 飞行坐骑玩法，除非后续明确把 Moth 放进 2.0 的后半段。
+
+## 立即下一步
+
+先做一个窄范围技术验证：
+
+1. 添加 GeckoLib。
+2. 选择 Ram 或 Dodo 作为第一只模型伙伴。
+3. 只做最小闭环：刷怪蛋、渲染器、idle/walk 动画、捕捉、召唤和收回。

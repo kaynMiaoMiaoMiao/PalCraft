@@ -1,56 +1,57 @@
-# PalCraft 1.11 Release Notes
+# PalCraft 1.11 封档说明
 
-Version: 1.11.0
-Status: sealed
-Target Minecraft: 1.20.1
-Loader: Fabric
+版本：1.11.0  
+状态：已封档  
+目标 Minecraft：1.20.1  
+Mod Loader：Fabric
 
-## Scope
+## 封档定位
 
-PalCraft 1.11 is the first sealed gameplay foundation. This version closes the first playable loop before the project moves into the 2.0 content and polish cycle.
+PalCraft 1.11 是第一个可玩的基础闭环版本。这个版本先把捕捉、伙伴仓库、召唤、战斗、成长、据点和 UI 跑通，作为后续 2.0 内容扩展和体验优化的稳定起点。
 
-## Completed Foundation
+## 已完成内容
 
-- Fabric 1.20.1 project setup and Gradle build pipeline.
-- PalCraft creative mode item group.
-- Capture orb item and throwable capture orb entity.
-- Capture flow for PalCraft companion entities.
-- Player companion storage through server-side persistent state.
-- Companion summon, recall, death state, health persistence, and rename flow.
-- Companion follow behavior and combat assistance.
-- Level, experience, talent, element type, combat stats, and skill data.
-- First batch of 7 base companions:
-  - Flameling
-  - Water Sprite
-  - Sparkit
-  - Wind Drake
-  - Treelet
-  - Icelime
-  - Mudloba
-- Base core block and owned base records.
-- Base companion storage, deployment, recall, and assignment.
-- Base work queue for mining, logging, and planting.
-- Real world interaction for mining, logging, mature crop harvesting, and crop replanting.
-- Visible base work behavior:
-  - deployed companions receive concrete work targets;
-  - companions path near the target before progress is applied;
-  - work particles and work sounds play while working;
-  - client model plays a generic work animation.
-- Player and base management UI with server-synced state.
-- Chinese and English language resources for the core feature set.
+- Fabric 1.20.1 项目环境和 Gradle 构建流程。
+- PalCraft 专属创造模式物品栏。
+- 捕捉球物品和可投掷捕捉球实体。
+- PalCraft 伙伴实体的捕捉流程。
+- 服务端持久化的玩家伙伴仓库。
+- 伙伴召唤、收回、死亡状态、生命值保存和改名流程。
+- 伙伴跟随玩家、协助攻击和保护玩家的基础战斗 AI。
+- 等级、经验、天赋、元素、战斗属性和技能数据。
+- 第一批 7 个基础伙伴：
+  - 小火苗
+  - 水精灵
+  - 电星仔
+  - 风鸟龙
+  - 小树酱
+  - 冰莱姆
+  - 泥佬巴
+- 据点核心方块和玩家归属的据点数据。
+- 据点伙伴仓库、部署、收回和工作分配。
+- 采矿、伐木、种植的据点任务队列。
+- 真实世界交互：采矿、伐木、成熟作物收获和补种。
+- 可见的据点工作动作：
+  - 部署后的伙伴会收到具体工作目标；
+  - 伙伴会先走到目标附近，再开始推进工作进度；
+  - 工作时播放粒子和音效；
+  - 客户端模型播放通用工作动画。
+- 随身伙伴和据点管理 UI。
+- UI 状态由服务端同步，客户端只负责显示和发送操作请求。
+- 核心功能的中文和英文语言文件。
 
-## Validation
+## 验证结果
 
-- `./gradlew compileJava` passed.
-- `./gradlew build` passed.
+- `./gradlew compileJava` 通过。
+- `./gradlew build` 通过。
 
-## Known 1.11 Limits
+## 1.11 已知限制
 
-- Existing companion models are still simple first-pass models.
-- Base work has visible action, but not yet rich job-specific animations.
-- Flying, riding, breeding, advanced production chains, and boss encounters are not in 1.11.
-- Purchased Nocsy Mount Pack assets are not included in 1.11.
+- 当前伙伴模型仍是第一轮简易模型。
+- 据点工作已经有可见动作，但还没有每种工作独立的精细动画。
+- 飞行、骑乘、繁殖、复杂生产链和 Boss 玩法不在 1.11 范围内。
+- 已购买的 Nocsy Mount Pack 模型资产没有进入 1.11。
 
-## 2.0 Handoff
+## 2.0 交接
 
-2.0 starts from the 1.11 gameplay foundation. The main goal is to replace or extend the temporary companion presentation with the purchased partner model batch, then improve gameplay pacing, UI ergonomics, base work feedback, and content depth.
+2.0 从 1.11 的玩法基础上继续开发。主目标是接入购买的伙伴模型资产，替换或扩展当前临时伙伴表现，然后围绕新伙伴继续完善玩法节奏、UI 体验、据点反馈和内容深度。

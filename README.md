@@ -1,29 +1,29 @@
 # PalCraft
 
-PalCraft is a Minecraft 1.20.1 Fabric mod project focused on original companion capture, companion growth, combat assistance, companion management, and base automation gameplay.
+PalCraft 是一个面向 Minecraft 1.20.1 Fabric 的原创伙伴捕捉、养成、战斗协助、伙伴管理和据点自动化 Mod。
 
-Version 1.11.0 is the first sealed gameplay foundation. Current features include capture orbs, multiple companion species, player companion storage, summon and recall, combat assistance, progression, element skills, base cores, base companion storage, base deployment, base work assignment, and visible base work actions.
+1.11.0 是第一个封档的基础玩法版本。当前功能包括捕捉球、多种伙伴、玩家伙伴仓库、召唤与收回、战斗协助、成长系统、元素技能、据点核心、据点伙伴仓库、据点部署、据点工作分配和可见的据点工作动作。
 
-## AI Authorship Notice
+## AI 辅助开发说明
 
-Most of the code in this project is written with AI assistance. The project owner provides the design direction, reviews implementation choices, tests behavior in game, and guides follow-up development.
+本项目大部分代码由 AI 辅助编写。项目所有者负责玩法方向、实现审查、游戏内测试和后续开发决策。
 
-AI-generated code should be reviewed before release, especially for gameplay correctness, performance, multiplayer behavior, licensing, and compatibility with Minecraft/Fabric updates.
+AI 生成代码在发布前需要继续审查，重点关注玩法正确性、性能、多人同步、授权合规以及 Minecraft/Fabric 更新兼容性。
 
-## Project Direction
+## 项目方向
 
-- Original Minecraft companion-capture gameplay.
-- Fabric mod for Minecraft 1.20.1.
-- Server-authoritative logic for gameplay systems.
-- Incremental development through documented milestones.
-- Original assets, names, creatures, UI, and mechanics expression.
+- 原创 Minecraft 伙伴捕捉玩法。
+- 面向 Minecraft 1.20.1 的 Fabric Mod。
+- 核心玩法逻辑以服务端为准。
+- 按文档里程碑逐步开发。
+- 使用原创资产、名称、伙伴、UI 和机制表达。
 
-## Requirements
+## 环境要求
 
-- Java 17 or newer
-- Use the included Gradle Wrapper: `./gradlew`
+- Java 17 或更高版本。
+- 使用项目自带 Gradle Wrapper：`./gradlew`。
 
-## Common Commands
+## 常用命令
 
 ```sh
 ./gradlew build
@@ -31,11 +31,11 @@ AI-generated code should be reviewed before release, especially for gameplay cor
 ./gradlew runServer
 ```
 
-The built mod jar will be generated under `build/libs/`.
+构建后的 Mod jar 会生成在 `build/libs/`。
 
-## Documentation
+## 文档
 
-Development and version planning are tracked in:
+开发计划和版本规划记录在：
 
 [doc/palcraft-development-plan.md](doc/palcraft-development-plan.md)
 
@@ -43,6 +43,6 @@ Development and version planning are tracked in:
 
 [doc/palcraft-2.0-plan.md](doc/palcraft-2.0-plan.md)
 
-## License
+## 许可证
 
-PalCraft is licensed under the GNU General Public License v3.0 only. See [LICENSE](LICENSE).
+PalCraft 使用 GNU General Public License v3.0 only。详见 [LICENSE](LICENSE)。
