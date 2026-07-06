@@ -32,6 +32,10 @@
     {
       "id": "palcraft:dodo",
       "required": false
+    },
+    {
+      "id": "palcraft:ram",
+      "required": false
     }
   ]
 }

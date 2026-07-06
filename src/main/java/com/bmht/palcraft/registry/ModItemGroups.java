@@ -18,14 +18,9 @@ public final class ModItemGroups {
                     .icon(() -> new ItemStack(ModItems.CAPTURE_ORB))
                     .entries((context, entries) -> {
                         entries.add(ModItems.CAPTURE_ORB);
-                        entries.add(ModItems.FLAMELING_SPAWN_EGG);
-                        entries.add(ModItems.WATER_SPRITE_SPAWN_EGG);
-                        entries.add(ModItems.SPARKIT_SPAWN_EGG);
-                        entries.add(ModItems.WIND_DRAKE_SPAWN_EGG);
-                        entries.add(ModItems.TREELET_SPAWN_EGG);
-                        entries.add(ModItems.ICELIME_SPAWN_EGG);
-                        entries.add(ModItems.MUDLOBA_SPAWN_EGG);
-                        entries.add(ModItems.DODO_SPAWN_EGG);
+                        for (var spawnEgg : ModItems.spawnEggs()) {
+                            entries.add(spawnEgg);
+                        }
                         entries.add(ModItems.BASE_CORE);
                     })
                     .build()

@@ -1,7 +1,7 @@
 package com.bmht.palcraft.base;
 
-import com.bmht.palcraft.partner.PalElementType;
 import com.bmht.palcraft.partner.PalInstance;
+import com.bmht.palcraft.partner.PalSpecies;
 
 import java.util.Locale;
 
@@ -37,21 +37,9 @@ public enum BaseWorkType implements BaseWork {
     }
 
     public int suitability(PalInstance pal) {
-        int score = 1;
+        int score = PalSpecies.fromId(pal.speciesId()).workSuitability(this);
         if (pal.level() >= 3) {
             score++;
-        }
-        if (pal.elementType() == PalElementType.THUNDER && this == MINING) {
-            score += 2;
-        }
-        if (pal.elementType() == PalElementType.WATER && this == PLANTING) {
-            score += 2;
-        }
-        if (pal.elementType() == PalElementType.WOOD && (this == PLANTING || this == LOGGING)) {
-            score += 2;
-        }
-        if (pal.elementType() == PalElementType.EARTH && this == MINING) {
-            score += 2;
         }
         return score;
     }
