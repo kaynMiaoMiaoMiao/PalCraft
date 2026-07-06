@@ -13,7 +13,8 @@ public enum PalSpecies {
     WIND_DRAKE("wind_drake", PalElementType.WIND, 13.0F, 3.1F, 0.0F, 1.6F, 0.7F, 0.12F, List.of(PalSkill.TACKLE, PalSkill.WIND_CUTTER)),
     TREELET("treelet", PalElementType.WOOD, 17.0F, 2.5F, 0.3F, 2.2F, 0.4F, 0.22F, List.of(PalSkill.TACKLE, PalSkill.LEAF_SHOT, PalSkill.SELF_REPAIR)),
     ICELIME("icelime", PalElementType.ICE, 16.0F, 2.8F, 0.4F, 1.9F, 0.45F, 0.28F, List.of(PalSkill.TACKLE, PalSkill.ICE_SHARD)),
-    MUDLOBA("mudloba", PalElementType.EARTH, 20.0F, 2.9F, 0.8F, 2.4F, 0.35F, 0.35F, List.of(PalSkill.TACKLE, PalSkill.MUD_SLAP));
+    MUDLOBA("mudloba", PalElementType.EARTH, 20.0F, 2.9F, 0.8F, 2.4F, 0.35F, 0.35F, List.of(PalSkill.TACKLE, PalSkill.MUD_SLAP)),
+    DODO("dodo", PalElementType.NEUTRAL, 18.0F, 2.6F, 0.4F, 2.0F, 0.35F, 0.18F, List.of(PalSkill.TACKLE));
 
     private final String path;
     private final PalElementType elementType;

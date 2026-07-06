@@ -2,6 +2,7 @@ package com.bmht.palcraft.client;
 
 import com.bmht.palcraft.PalCraft;
 import com.bmht.palcraft.client.network.PalCraftClientNetworking;
+import com.bmht.palcraft.client.render.entity.DodoEntityRenderer;
 import com.bmht.palcraft.client.render.entity.SparkitEntityRenderer;
 import com.bmht.palcraft.client.render.entity.model.BasicPalEntityModel;
 import com.bmht.palcraft.client.screen.PalCraftManagementScreen;
@@ -37,6 +38,7 @@ public class PalCraftClient implements ClientModInitializer {
         EntityRendererRegistry.register(ModEntities.TREELET, context -> new SparkitEntityRenderer(context, BasicPalEntityModel.TREELET_LAYER, texture("treelet"), 0.4F));
         EntityRendererRegistry.register(ModEntities.ICELIME, context -> new SparkitEntityRenderer(context, BasicPalEntityModel.ICELIME_LAYER, texture("icelime"), 0.4F));
         EntityRendererRegistry.register(ModEntities.MUDLOBA, context -> new SparkitEntityRenderer(context, BasicPalEntityModel.MUDLOBA_LAYER, texture("mudloba"), 0.45F));
+        EntityRendererRegistry.register(ModEntities.DODO, DodoEntityRenderer::new);
         PalCraftClientNetworking.registerReceivers();
         openManagementKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.palcraft.management",

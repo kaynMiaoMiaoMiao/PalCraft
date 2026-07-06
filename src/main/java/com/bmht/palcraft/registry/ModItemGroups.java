@@ -25,6 +25,7 @@ public final class ModItemGroups {
                         entries.add(ModItems.TREELET_SPAWN_EGG);
                         entries.add(ModItems.ICELIME_SPAWN_EGG);
                         entries.add(ModItems.MUDLOBA_SPAWN_EGG);
+                        entries.add(ModItems.DODO_SPAWN_EGG);
                         entries.add(ModItems.BASE_CORE);
                     })
                     .build()

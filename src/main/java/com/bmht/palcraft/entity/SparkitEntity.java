@@ -100,7 +100,7 @@ public class SparkitEntity extends PathAwareEntity {
                 .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 18.0D);
     }
 
-    public static boolean canSpawn(EntityType<SparkitEntity> type, ServerWorldAccess world, SpawnReason spawnReason, BlockPos pos, Random random) {
+    public static boolean canSpawn(EntityType<? extends SparkitEntity> type, ServerWorldAccess world, SpawnReason spawnReason, BlockPos pos, Random random) {
         BlockState groundState = world.getBlockState(pos.down());
         return groundState.isIn(BlockTags.ANIMALS_SPAWNABLE_ON) && world.getLightLevel(pos) > 8;
     }

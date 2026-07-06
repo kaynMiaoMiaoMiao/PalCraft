@@ -28,6 +28,10 @@
     {
       "id": "palcraft:mudloba",
       "required": false
+    },
+    {
+      "id": "palcraft:dodo",
+      "required": false
     }
   ]
 }

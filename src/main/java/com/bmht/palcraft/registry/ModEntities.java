@@ -2,6 +2,7 @@ package com.bmht.palcraft.registry;
 
 import com.bmht.palcraft.PalCraft;
 import com.bmht.palcraft.entity.CaptureOrbEntity;
+import com.bmht.palcraft.entity.DodoEntity;
 import com.bmht.palcraft.entity.SparkitEntity;
 import net.fabricmc.fabric.api.biome.v1.BiomeModifications;
 import net.fabricmc.fabric.api.biome.v1.BiomeSelectors;
@@ -36,39 +37,52 @@ public final class ModEntities {
     public static final EntityType<SparkitEntity> TREELET = registerBasicPal("treelet");
     public static final EntityType<SparkitEntity> ICELIME = registerBasicPal("icelime");
     public static final EntityType<SparkitEntity> MUDLOBA = registerBasicPal("mudloba");
+    public static final EntityType<DodoEntity> DODO = Registry.register(
+            Registries.ENTITY_TYPE,
+            new Identifier(PalCraft.MOD_ID, "dodo"),
+            FabricEntityTypeBuilder.create(SpawnGroup.CREATURE, DodoEntity::new)
+                    .dimensions(EntityDimensions.fixed(0.9F, 1.4F))
+                    .trackRangeBlocks(8)
+                    .build()
+    );
 
-    public static final List<EntityType<SparkitEntity>> BASIC_PALS = List.of(
+    public static final List<EntityType<? extends SparkitEntity>> BASIC_PALS = List.of(
             FLAMELING,
             WATER_SPRITE,
             SPARKIT,
             WIND_DRAKE,
             TREELET,
             ICELIME,
-            MUDLOBA
+            MUDLOBA,
+            DODO
     );
 
     private ModEntities() {
     }
 
     public static void registerModEntities() {
-        for (EntityType<SparkitEntity> entityType : BASIC_PALS) {
-            FabricDefaultAttributeRegistry.register(entityType, SparkitEntity.createSparkitAttributes());
-            SpawnRestriction.register(
-                    entityType,
-                    SpawnRestriction.Location.ON_GROUND,
-                    Heightmap.Type.MOTION_BLOCKING_NO_LEAVES,
-                    SparkitEntity::canSpawn
-            );
-            BiomeModifications.addSpawn(
-                    BiomeSelectors.foundInOverworld(),
-                    SpawnGroup.CREATURE,
-                    entityType,
-                    12,
-                    1,
-                    2
-            );
+        for (EntityType<? extends SparkitEntity> entityType : BASIC_PALS) {
+            registerPalSpawn(entityType);
         }
         PalCraft.LOGGER.info("Registering PalCraft entities");
+    }
+
+    private static <T extends SparkitEntity> void registerPalSpawn(EntityType<T> entityType) {
+        FabricDefaultAttributeRegistry.register(entityType, SparkitEntity.createSparkitAttributes());
+        SpawnRestriction.register(
+                entityType,
+                SpawnRestriction.Location.ON_GROUND,
+                Heightmap.Type.MOTION_BLOCKING_NO_LEAVES,
+                SparkitEntity::canSpawn
+        );
+        BiomeModifications.addSpawn(
+                BiomeSelectors.foundInOverworld(),
+                SpawnGroup.CREATURE,
+                entityType,
+                12,
+                1,
+                2
+        );
     }
 
     private static EntityType<SparkitEntity> registerBasicPal(String name) {

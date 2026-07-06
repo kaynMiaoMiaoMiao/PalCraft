@@ -43,6 +43,10 @@ public final class ModItems {
             "mudloba_spawn_egg",
             new SpawnEggItem(ModEntities.MUDLOBA, 0x8A6145, 0xC7A26A, new FabricItemSettings())
     );
+    public static final Item DODO_SPAWN_EGG = registerItem(
+            "dodo_spawn_egg",
+            new SpawnEggItem(ModEntities.DODO, 0xB98B54, 0x3F2A1B, new FabricItemSettings())
+    );
     public static final Item BASE_CORE = registerItem(
             "base_core",
             new BlockItem(ModBlocks.BASE_CORE, new FabricItemSettings())
