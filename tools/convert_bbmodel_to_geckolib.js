@@ -45,10 +45,15 @@ function faceUv(face) {
 }
 
 function convertCube(element) {
+  if (!element || element.export === false || element.visibility === false) {
+    return null;
+  }
+
   const from = vector(element.from);
   const to = vector(element.to);
   const size = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
-  if (size.some((entry) => Math.abs(entry) < 0.001)) {
+  const nonZeroDimensions = size.filter((entry) => Math.abs(entry) >= 0.001).length;
+  if (nonZeroDimensions < 2) {
     return null;
   }
 
@@ -156,7 +161,37 @@ function valueOf(point) {
   });
 }
 
-function convertKeyframes(keyframes, channel) {
+function addVectors(left, right) {
+  return left.map((entry, index) => entry + (right[index] || 0));
+}
+
+function collectPoseOffsets() {
+  const pose = (model.animations || []).find((animation) => animation.name === "pose");
+  const offsets = new Map();
+  if (!pose) {
+    return offsets;
+  }
+
+  for (const [uuid, animator] of Object.entries(pose.animators || {})) {
+    const boneName = boneNamesByUuid.get(uuid) || sanitizeName(animator.name);
+    const channels = {};
+    for (const keyframe of animator.keyframes || []) {
+      if (Number(keyframe.time) !== 0 || !keyframe.data_points || keyframe.data_points.length === 0) {
+        continue;
+      }
+      if (keyframe.channel === "rotation" || keyframe.channel === "position") {
+        channels[keyframe.channel] = valueOf(keyframe.data_points[0]);
+      }
+    }
+    if (Object.keys(channels).length > 0) {
+      offsets.set(boneName, channels);
+    }
+  }
+
+  return offsets;
+}
+
+function convertKeyframes(keyframes, channel, poseOffset) {
   const result = {};
   const sorted = keyframes
     .filter((keyframe) => keyframe.channel === channel && keyframe.data_points && keyframe.data_points.length > 0)
@@ -164,8 +199,9 @@ function convertKeyframes(keyframes, channel) {
 
   for (const keyframe of sorted) {
     const time = Number(keyframe.time) || 0;
+    const value = valueOf(keyframe.data_points[0]);
     const entry = {
-      vector: valueOf(keyframe.data_points[0])
+      vector: poseOffset ? addVectors(value, poseOffset) : value
     };
     if (keyframe.interpolation && keyframe.interpolation !== "linear") {
       entry.easing = keyframe.interpolation;
@@ -176,13 +212,41 @@ function convertKeyframes(keyframes, channel) {
   return result;
 }
 
-function convertAnimation(animation, name) {
+function addStaticPoseChannels(animation, bones, poseOffsets) {
+  if (animation.name === "pose") {
+    return;
+  }
+
+  const length = Number(animation.length) || 1;
+  for (const [boneName, channels] of poseOffsets.entries()) {
+    const boneAnimation = bones[boneName] || {};
+    for (const [channel, offset] of Object.entries(channels)) {
+      if (boneAnimation[channel]) {
+        continue;
+      }
+      boneAnimation[channel] = {
+        "0": {
+          vector: offset
+        },
+        [String(Number(length.toFixed(4)))]: {
+          vector: offset
+        }
+      };
+    }
+    if (Object.keys(boneAnimation).length > 0) {
+      bones[boneName] = boneAnimation;
+    }
+  }
+}
+
+function convertAnimation(animation, poseOffsets) {
   const bones = {};
   for (const [uuid, animator] of Object.entries(animation.animators || {})) {
     const boneName = boneNamesByUuid.get(uuid) || sanitizeName(animator.name);
     const boneAnimation = {};
     for (const channel of ["rotation", "position", "scale"]) {
-      const keyframes = convertKeyframes(animator.keyframes || [], channel);
+      const poseOffset = poseOffsets.get(boneName) && poseOffsets.get(boneName)[channel];
+      const keyframes = convertKeyframes(animator.keyframes || [], channel, poseOffset);
       if (Object.keys(keyframes).length > 0) {
         boneAnimation[channel] = keyframes;
       }
@@ -191,6 +255,7 @@ function convertAnimation(animation, name) {
       bones[boneName] = boneAnimation;
     }
   }
+  addStaticPoseChannels(animation, bones, poseOffsets);
 
   return {
     loop: animation.loop === "loop",
@@ -201,13 +266,32 @@ function convertAnimation(animation, name) {
 
 function convertAnimations() {
   const animations = {};
-  for (const animation of model.animations || []) {
-    if (animation.name === "idle") {
-      animations["misc.idle"] = convertAnimation(animation, "misc.idle");
-    } else if (animation.name === "walk") {
-      animations["move.walk"] = convertAnimation(animation, "move.walk");
-    } else if (animation.name === "death") {
-      animations["misc.die"] = convertAnimation(animation, "misc.die");
+  const poseOffsets = collectPoseOffsets();
+  const sourceAnimations = new Map((model.animations || []).map((animation) => [animation.name, animation]));
+  const mappings = [
+    ["idle", "misc.idle"],
+    ["walk", "move.walk"],
+    ["walk_prebaked", "move.walk"],
+    ["walk_force", "move.walk.force"],
+    ["fly_loop", "move.fly"],
+    ["fly_loop_prebaked", "move.fly"],
+    ["fly_start", "move.fly.start"],
+    ["fly_end", "move.fly.end"],
+    ["jump", "move.jump"],
+    ["attack_static", "attack.swing"],
+    ["attack_moving", "attack.moving"],
+    ["charge", "attack.charge"],
+    ["gas", "attack.cast"],
+    ["interact", "misc.interact"],
+    ["eclode", "misc.spawn"],
+    ["remove", "misc.remove"],
+    ["death", "misc.die"]
+  ];
+
+  for (const [sourceName, targetName] of mappings) {
+    const animation = sourceAnimations.get(sourceName);
+    if (animation) {
+      animations[targetName] = convertAnimation(animation, poseOffsets);
     }
   }
 

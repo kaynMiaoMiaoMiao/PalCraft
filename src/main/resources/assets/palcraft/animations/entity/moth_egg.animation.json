@@ -24,6 +24,186 @@
           }
         }
       }
+    },
+    "misc.interact": {
+      "loop": false,
+      "animation_length": 1.3,
+      "bones": {
+        "shell": {
+          "rotation": {
+            "0": {
+              "vector": [
+                0,
+                0,
+                0
+              ],
+              "easing": "catmullrom"
+            },
+            "1": {
+              "vector": [
+                7.492942810808472,
+                0.32621370972219665,
+                -2.4786389426803908
+              ],
+              "easing": "catmullrom"
+            },
+            "0.25": {
+              "vector": [
+                12.45392054358581,
+                -1.0808891363294606,
+                4.882059770966862
+              ],
+              "easing": "catmullrom"
+            },
+            "0.55": {
+              "vector": [
+                -14.945479183940733,
+                -1.2925629689520974,
+                -4.83044939028423
+              ],
+              "easing": "catmullrom"
+            },
+            "1.3": {
+              "vector": [
+                0,
+                0,
+                0
+              ],
+              "easing": "catmullrom"
+            }
+          }
+        }
+      }
+    },
+    "misc.spawn": {
+      "loop": false,
+      "animation_length": 2.95,
+      "bones": {
+        "shell": {
+          "rotation": {
+            "0": {
+              "vector": [
+                0,
+                0,
+                0
+              ],
+              "easing": "catmullrom"
+            },
+            "0.4": {
+              "vector": [
+                12.5,
+                0,
+                0
+              ],
+              "easing": "catmullrom"
+            },
+            "0.8": {
+              "vector": [
+                -10,
+                0,
+                0
+              ],
+              "easing": "catmullrom"
+            },
+            "1.2": {
+              "vector": [
+                12.5,
+                0,
+                0
+              ],
+              "easing": "catmullrom"
+            },
+            "1.65": {
+              "vector": [
+                -10,
+                0,
+                0
+              ],
+              "easing": "catmullrom"
+            },
+            "1.9": {
+              "vector": [
+                5,
+                0,
+                0
+              ],
+              "easing": "catmullrom"
+            },
+            "2.15": {
+              "vector": [
+                -5,
+                0,
+                0
+              ],
+              "easing": "catmullrom"
+            },
+            "2.4": {
+              "vector": [
+                10,
+                0,
+                0
+              ],
+              "easing": "catmullrom"
+            },
+            "2.6": {
+              "vector": [
+                -5,
+                0,
+                0
+              ],
+              "easing": "catmullrom"
+            },
+            "2.75": {
+              "vector": [
+                10,
+                0,
+                0
+              ],
+              "easing": "catmullrom"
+            },
+            "2.85": {
+              "vector": [
+                -5,
+                0,
+                0
+              ],
+              "easing": "catmullrom"
+            },
+            "2.95": {
+              "vector": [
+                0,
+                0,
+                0
+              ],
+              "easing": "catmullrom"
+            }
+          }
+        }
+      }
+    },
+    "misc.remove": {
+      "loop": false,
+      "animation_length": 1,
+      "bones": {
+        "shell": {
+          "position": {
+            "0": {
+              "vector": [
+                0,
+                -16.000000000000004,
+                0
+              ]
+            },
+            "1": {
+              "vector": [
+                0,
+                -16.000000000000004,
+                0
+              ]
+            }
+          }
+        }
+      }
     }
   },
   "geckolib_format_version": 2
