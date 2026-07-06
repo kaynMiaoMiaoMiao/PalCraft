@@ -36,6 +36,18 @@
     {
       "id": "palcraft:ram",
       "required": false
+    },
+    {
+      "id": "palcraft:leopard",
+      "required": false
+    },
+    {
+      "id": "palcraft:lizard",
+      "required": false
+    },
+    {
+      "id": "palcraft:moth",
+      "required": false
     }
   ]
 }

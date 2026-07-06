@@ -1,0 +1,30 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "misc.idle": {
+      "loop": false,
+      "animation_length": 1,
+      "bones": {
+        "egg": {
+          "rotation": {
+            "0": {
+              "vector": [
+                0,
+                0,
+                0
+              ]
+            },
+            "1": {
+              "vector": [
+                0,
+                0,
+                0
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "geckolib_format_version": 2
+}

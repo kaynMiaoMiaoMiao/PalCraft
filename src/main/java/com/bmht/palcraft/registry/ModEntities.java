@@ -3,6 +3,9 @@ package com.bmht.palcraft.registry;
 import com.bmht.palcraft.PalCraft;
 import com.bmht.palcraft.entity.CaptureOrbEntity;
 import com.bmht.palcraft.entity.DodoEntity;
+import com.bmht.palcraft.entity.LeopardEntity;
+import com.bmht.palcraft.entity.LizardEntity;
+import com.bmht.palcraft.entity.MothEntity;
 import com.bmht.palcraft.entity.RamEntity;
 import com.bmht.palcraft.entity.SparkitEntity;
 import com.bmht.palcraft.partner.PalSpecies;
@@ -45,6 +48,9 @@ public final class ModEntities {
     public static final EntityType<SparkitEntity> MUDLOBA = basicPal(PalSpecies.MUDLOBA);
     public static final EntityType<DodoEntity> DODO = dodoPal();
     public static final EntityType<RamEntity> RAM = ramPal();
+    public static final EntityType<LeopardEntity> LEOPARD = leopardPal();
+    public static final EntityType<LizardEntity> LIZARD = lizardPal();
+    public static final EntityType<MothEntity> MOTH = mothPal();
 
     public static final List<EntityType<? extends SparkitEntity>> BASIC_PALS = List.copyOf(PALS_BY_SPECIES.values());
 
@@ -90,6 +96,9 @@ public final class ModEntities {
             EntityType<? extends SparkitEntity> entityType = switch (species) {
                 case DODO -> registerPal(species, DodoEntity::new);
                 case RAM -> registerPal(species, RamEntity::new);
+                case LEOPARD -> registerPal(species, LeopardEntity::new);
+                case LIZARD -> registerPal(species, LizardEntity::new);
+                case MOTH -> registerPal(species, MothEntity::new);
                 default -> registerPal(species, SparkitEntity::new);
             };
             entities.put(species, entityType);
@@ -121,5 +130,20 @@ public final class ModEntities {
     @SuppressWarnings("unchecked")
     private static EntityType<RamEntity> ramPal() {
         return (EntityType<RamEntity>) getPalEntityType(PalSpecies.RAM);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static EntityType<LeopardEntity> leopardPal() {
+        return (EntityType<LeopardEntity>) getPalEntityType(PalSpecies.LEOPARD);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static EntityType<LizardEntity> lizardPal() {
+        return (EntityType<LizardEntity>) getPalEntityType(PalSpecies.LIZARD);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static EntityType<MothEntity> mothPal() {
+        return (EntityType<MothEntity>) getPalEntityType(PalSpecies.MOTH);
     }
 }

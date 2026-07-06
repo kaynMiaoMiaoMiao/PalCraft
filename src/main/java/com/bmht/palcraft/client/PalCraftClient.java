@@ -3,6 +3,7 @@ package com.bmht.palcraft.client;
 import com.bmht.palcraft.PalCraft;
 import com.bmht.palcraft.client.network.PalCraftClientNetworking;
 import com.bmht.palcraft.client.render.entity.DodoEntityRenderer;
+import com.bmht.palcraft.client.render.entity.GeoPalEntityRenderer;
 import com.bmht.palcraft.client.render.entity.RamEntityRenderer;
 import com.bmht.palcraft.client.render.entity.SparkitEntityRenderer;
 import com.bmht.palcraft.client.render.entity.model.BasicPalEntityModel;
@@ -41,6 +42,9 @@ public class PalCraftClient implements ClientModInitializer {
         EntityRendererRegistry.register(ModEntities.MUDLOBA, context -> new SparkitEntityRenderer(context, BasicPalEntityModel.MUDLOBA_LAYER, texture("mudloba"), 0.45F));
         EntityRendererRegistry.register(ModEntities.DODO, DodoEntityRenderer::new);
         EntityRendererRegistry.register(ModEntities.RAM, RamEntityRenderer::new);
+        EntityRendererRegistry.register(ModEntities.LEOPARD, context -> new GeoPalEntityRenderer<>(context, "leopard", 0.45F));
+        EntityRendererRegistry.register(ModEntities.LIZARD, context -> new GeoPalEntityRenderer<>(context, "lizard", 0.4F));
+        EntityRendererRegistry.register(ModEntities.MOTH, context -> new GeoPalEntityRenderer<>(context, "moth", 0.5F));
         PalCraftClientNetworking.registerReceivers();
         openManagementKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.palcraft.management",

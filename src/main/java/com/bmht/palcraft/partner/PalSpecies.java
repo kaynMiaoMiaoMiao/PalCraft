@@ -193,7 +193,7 @@ public enum PalSpecies {
     ),
     LEOPARD(
             "leopard",
-            false,
+            true,
             PalElementType.NEUTRAL,
             18.0F,
             4.0F,
@@ -213,7 +213,7 @@ public enum PalSpecies {
     ),
     LIZARD(
             "lizard",
-            false,
+            true,
             PalElementType.FIRE,
             19.0F,
             3.4F,
@@ -233,7 +233,7 @@ public enum PalSpecies {
     ),
     MOTH(
             "moth",
-            false,
+            true,
             PalElementType.WIND,
             15.0F,
             3.1F,
